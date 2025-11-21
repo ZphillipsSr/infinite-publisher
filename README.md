@@ -1,6 +1,9 @@
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 \# Infinite Publisher – MVP
 
-
+> **Infinite Publisher**  
+> An AI-assisted book production studio for authors who want
+> manuscript editing, KDP-ready formatting, and research tools in one place.
 
 Infinite Publisher is a desktop-friendly web app that helps authors go from raw manuscript to KDP-ready files with AI-assisted tools.
 
@@ -40,7 +43,29 @@ This MVP is focused on:
 
 ---
 
+## Support & Sponsoring
 
+If this project helps you, you can support ongoing development by:
+
+- Sharing it with other authors and small publishers
+- Filing issues and feature requests on GitHub
+- (Optional later) Supporting via GitHub Sponsors / Ko-fi / Patreon
+
+_As the project matures, we can link specific sponsor platforms here._
+## Documentation
+
+- Roadmap: [`ROADMAP.md`](./ROADMAP.md)
+- Contribution guide: [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+- Code of Conduct: [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
+- Security policy: [`SECURITY.md`](./SECURITY.md)
+- Changelog: [`CHANGELOG.md`](./CHANGELOG.md)
+## Screenshots
+
+_Coming soon_
+
+- Manuscript workspace (editor + stats)
+- AI chat and research panel
+- Print / cover specs and KDP sheet export
 
 \## 📁 Project Structure (High Level)
 
@@ -71,4 +96,12 @@ infinite-publisher/
 &nbsp; ROADMAP.md        # Feature roadmap, ideas, and upgrade paths
 
 &nbsp; .gitignore        # Git / GitHub ignore rules
+---
 
+## 📄 Project Documentation & Policies
+
+- **License** — [Apache 2.0 License](LICENSE)
+- **Contributing Guidelines** — [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Code of Conduct** — [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Security Policy** — [SECURITY.md](SECURITY.md)
+- **Changelog** — [CHANGELOG.md](CHANGELOG.md)
