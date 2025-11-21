@@ -1,0 +1,638 @@
+/* ========= Base layout ========= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #020617; /* deep slate */
+  color: #0f172a;
+}
+
+.app-root {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%);
+  color: #0f172a;
+}
+
+/* ========= Header ========= */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 2rem;
+  background: #020617;
+  color: #f9fafb;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  letter-spacing: 0.04em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.project-meta {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  color: #cbd5f5;
+}
+
+.save-status {
+  opacity: 0.8;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #e5e7eb;
+}
+
+/* ========= Global controls ========= */
+
+.app-root button {
+  border: none;
+  border-radius: 999px;
+  background: #3b82f6;
+  color: white;
+  font-size: 0.9rem;
+  padding: 0.45rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  transition:
+    background-color 0.15s ease,
+    transform 0.08s ease,
+    box-shadow 0.15s ease;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
+}
+
+.app-root button:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+}
+
+.app-root button:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.35);
+}
+
+.app-root button:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* inputs / selects / textareas */
+
+.app-root input[type="text"],
+.app-root input[type="number"],
+.app-root input[type="file"],
+.app-root select,
+.app-root textarea {
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.app-root input[type="text"],
+.app-root input[type="number"],
+.app-root select {
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5f5;
+  background: #ffffff;
+  color: #0f172a;
+  min-width: 0;
+}
+
+.app-root input[type="text"]:focus,
+.app-root input[type="number"]:focus,
+.app-root select:focus,
+.app-root textarea:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+  border-color: #3b82f6;
+}
+
+.app-root textarea {
+  border-radius: 0.75rem;
+  border: 1px solid #d1d5db;
+  padding: 0.6rem 0.7rem;
+  resize: vertical;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+/* ========= Main layout ========= */
+
+.app-main {
+  padding: 1.5rem 2rem 2.5rem;
+}
+
+.library,
+.workspace {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ========= Settings panel ========= */
+
+.settings-panel {
+  max-width: 1280px;
+  margin: 0 auto 1rem;
+  background: #0b1120;
+  color: #e5e7eb;
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.settings-panel h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.settings-group {
+  margin-top: 0.75rem;
+}
+
+.settings-hint {
+  font-size: 0.8rem;
+  color: #cbd5f5;
+  margin: 0.25rem 0 0.6rem;
+}
+
+/* ========= Library view ========= */
+
+.new-project,
+.project-list {
+  background: #f9fafb;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  margin-bottom: 1.25rem;
+}
+
+.new-project h2,
+.project-list h2 {
+  margin-top: 0;
+}
+
+.project-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.project-card:last-child {
+  border-bottom: none;
+}
+
+.project-card .meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+/* ========= Workspace layout ========= */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.4fr);
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 1000px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ========= Workflow steps (left dark panel) ========= */
+
+.workflow-steps {
+  background: radial-gradient(circle at top left, #1e293b 0%, #020617 70%);
+  color: #e5e7eb;
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.7);
+}
+
+.workflow-steps h2 {
+  margin-top: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #bfdbfe;
+}
+
+.workflow-steps ol {
+  margin: 0.75rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.95rem;
+}
+
+.workflow-steps li + li {
+  margin-top: 0.3rem;
+}
+
+.workflow-steps strong {
+  color: #e5e7eb;
+}
+
+.workflow-steps span {
+  color: #cbd5f5;
+  font-size: 0.9rem;
+}
+
+/* ========= Editor section ========= */
+
+.editor-section {
+  background: #f9fafb;
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.editor-section h2 {
+  margin-top: 0;
+}
+
+.upload-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.upload-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.format-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0.75rem 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.format-options label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.editor-section textarea {
+  width: 100%;
+  margin-top: 0.75rem;
+  min-height: 260px;
+  font-family: "Georgia", "Times New Roman", serif;
+  line-height: 1.5;
+}
+
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+.upload-row.drop-enabled {
+  border: 2px dashed #888;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.import-status {
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.error {
+  color: #b00020;
+  font-size: 0.9rem;
+}
+/* ========= Rewrite helpers ========= */
+
+.rewrite-status {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.rewrite-actions {
+  margin-top: 0.5rem;
+}
+
+.rewrite-label {
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+}
+
+.rewrite-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* ========= Format result & print specs ========= */
+
+.format-result {
+  margin-top: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.75rem;
+  background: #eef2ff;
+  font-size: 0.9rem;
+}
+
+.print-specs {
+  margin-top: 1.2rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.print-specs h3 {
+  margin-top: 0.25rem;
+}
+
+.print-hint {
+  margin: 0.25rem 0 0.65rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.print-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.print-specs-output {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.cover-helper {
+  margin-top: 0.75rem;
+}
+
+.cover-json-textarea {
+  width: 100%;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.8rem;
+}
+
+/* ========= Insights ========= */
+
+.insights-section {
+  margin-top: 1.2rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.insights-output {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.insights-output details {
+  margin-top: 0.5rem;
+}
+
+.insights-output summary {
+  cursor: pointer;
+}
+
+/* ========= Outline ========= */
+
+.outline-section {
+  margin-top: 1.2rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.outline-textarea {
+  margin-top: 0.6rem;
+  width: 100%;
+  min-height: 180px;
+}
+
+/* ========= Style profile ========= */
+
+.style-section {
+  margin-top: 1.2rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.style-grid label {
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.style-notes-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+}
+
+/* ========= Marketing ========= */
+
+.marketing-section {
+  margin-top: 1.2rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.marketing-buttons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.marketing-textarea {
+  width: 100%;
+  min-height: 140px;
+}
+
+/* ========= Chat column ========= */
+
+.chat-section {
+  background: #f9fafb;
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.4rem 1.5rem;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.chat-section h2 {
+  margin-top: 0;
+}
+
+.chat-log {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0.4rem 0;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.chat-placeholder {
+  margin: 0.75rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.chat-msg {
+  padding: 0.5rem 0.75rem;
+  margin: 0.25rem 0.5rem;
+  border-radius: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.chat-msg strong {
+  display: block;
+  font-size: 0.8rem;
+  margin-bottom: 0.15rem;
+}
+
+.chat-msg.user {
+  background: #dbeafe;
+  align-self: flex-end;
+}
+
+.chat-msg.assistant {
+  background: #e5e7eb;
+}
+
+.chat-input-row {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chat-input-row textarea {
+  min-height: 80px;
+}
+
+/* ========= Research ========= */
+
+.research-section {
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.research-block + .research-block {
+  margin-top: 0.75rem;
+}
+
+.research-buttons-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.research-suggestions {
+  margin-top: 0.5rem;
+}
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.suggestion-chips button {
+  background: #e5e7eb;
+  color: #111827;
+  box-shadow: none;
+}
+
+.research-results {
+  margin-top: 0.7rem;
+  font-size: 0.9rem;
+}
+
+.research-results ul {
+  padding-left: 1rem;
+}
+
+.research-results li {
+  margin-bottom: 0.4rem;
+}
+
+/* ========= Small screens tweaks ========= */
+
+@media (max-width: 768px) {
+  .app-main {
+    padding: 1rem 1rem 2rem;
+  }
+
+  .app-header {
+    padding-inline: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .header-right {
+    align-self: stretch;
+    justify-content: space-between;
+  }
+
+  .editor-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .marketing-buttons-row,
+  .research-buttons-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

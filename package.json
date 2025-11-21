@@ -1,0 +1,43 @@
+{
+  "name": "infinite-publisher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Infinite Publisher desktop app",
+  "author": "Zachary Jaiamin Phillips Sr.",
+  "main": "electron-main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build": "npm run build:server && npm run build:client && electron-builder"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.2",
+    "electron-builder": "^26.0.12",
+    "wait-on": "^9.0.3"
+  },
+ "build": {
+  "appId": "com.infinitepublisher.app",
+  "productName": "Infinite Publisher",
+  "asar": false,
+  "files": [
+    "electron-main.js",
+    "package.json",
+    "client/dist/**",
+    "server/dist/**",
+    "server/.env"
+  ],
+  "directories": {
+    "output": "dist_electron"
+  },
+  "win": {
+    "target": "nsis"
+  }
+}
+
+}
