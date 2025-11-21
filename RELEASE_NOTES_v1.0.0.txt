@@ -1,0 +1,20 @@
+# Infinite Publisher v1.0.0
+
+First official tagged version of Infinite Publisher.
+
+## Features
+- AI manuscript chat
+- Manuscript import (txt, md, doc, docx, pdf, epub)
+- AI rewriting tools
+- AI outline generator
+- AI back-cover generator
+- Fact-checking & research system
+- Formatting + Print Specs calculator
+- DOCX export for KDP
+- Full project autosave + style profile system
+- Apache 2.0 licensed
+- Model fallback system (Deepseek → Kimi → Llama)
+
+## Notes
+This is the initial public release.  
+See ROADMAP.md for upcoming features.
