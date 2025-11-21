@@ -13,31 +13,32 @@
     "build:server": "npm --prefix server run build",
     "build:client": "npm --prefix client run build",
     "build": "npm run build:server && npm run build:client && electron-builder"
+    "release": "standard-version"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^39.2.2",
     "electron-builder": "^26.0.12",
+    "standard-version": "^9.5.0",
     "wait-on": "^9.0.3"
   },
- "build": {
-  "appId": "com.infinitepublisher.app",
-  "productName": "Infinite Publisher",
-  "asar": false,
-  "files": [
-    "electron-main.js",
-    "package.json",
-    "client/dist/**",
-    "server/dist/**",
-    "server/.env"
-  ],
-  "directories": {
-    "output": "dist_electron"
-  },
-  "win": {
-    "target": "nsis"
+  "build": {
+    "appId": "com.infinitepublisher.app",
+    "productName": "Infinite Publisher",
+    "asar": false,
+    "files": [
+      "electron-main.js",
+      "package.json",
+      "client/dist/**",
+      "server/dist/**",
+      "server/.env"
+    ],
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "target": "nsis"
+    }
   }
-}
-
 }
