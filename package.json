@@ -1,6 +1,6 @@
 {
   "name": "infinite-publisher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Infinite Publisher desktop app",
   "author": "Zachary Jaiamin Phillips Sr.",
@@ -12,7 +12,7 @@
     "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
     "build:server": "npm --prefix server run build",
     "build:client": "npm --prefix client run build",
-    "build": "npm run build:server && npm run build:client && electron-builder"
+    "build": "npm run build:server && npm run build:client && electron-builder",
     "release": "standard-version"
   },
   "devDependencies": {
