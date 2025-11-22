@@ -4,6 +4,7 @@ import ModelStatusPanel from "./components/ModelStatusPanel";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 // ---------- Types ----------
 
 type StyleProfile = {
@@ -44,12 +45,21 @@ type FormatResult = {
   lineSpacing: number;
 };
 
+type ConsoleTab = "book" | "dev";
+
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
 };
 
 function App() {
+  // Console state (for future GPT console view)
+  const [consoleMessages, setConsoleMessages] = useState<
+    { role: "user" | "assistant"; content: string }[]
+  >([]);
+  const [consoleInput, setConsoleInput] = useState("");
+  const [consoleBusy, setConsoleBusy] = useState(false);
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
@@ -60,8 +70,10 @@ function App() {
 
   const [newTitle, setNewTitle] = useState("");
   const [manuscript, setManuscript] = useState("");
- const [importLoading, setImportLoading] = useState(false);
+
+  const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+
   const [styleProfile, setStyleProfile] =
     useState<StyleProfile>(emptyStyleProfile);
   const [formatResult, setFormatResult] = useState<FormatResult | null>(null);
@@ -70,7 +82,6 @@ function App() {
   const [lineSpacing, setLineSpacing] = useState<number>(1.15);
 
   const [showSettings, setShowSettings] = useState(false);
- 
 
   const [envDebug, setEnvDebug] = useState<any | null>(null);
   const [envDebugLoading, setEnvDebugLoading] = useState(false);
@@ -81,8 +92,22 @@ function App() {
   const [printSpecs, setPrintSpecs] = useState<any | null>(null);
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+
+  // Top-level view: main workspace vs full-screen assistant
+  const [activeView, setActiveView] = useState<"workspace" | "assistant">(
+    "workspace"
+  );
+
+  // Co-author / console tabs
+  const [consoleTab, setConsoleTab] = useState<ConsoleTab>("book");
+
+  // Dev / coding console chat (general AI, not manuscript-contextual)
+  const [devChatMessages, setDevChatMessages] = useState<ChatMessage[]>([]);
+  const [devChatInput, setDevChatInput] = useState("");
+  const [devChatLoading, setDevChatLoading] = useState(false);
 
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [backCoverBlurb, setBackCoverBlurb] = useState("");
@@ -210,7 +235,6 @@ function App() {
     setResearchSuggestions([]);
     setChapterOutline("");
 
-    // Defaults if nothing is found
     let loadedManuscript = "";
     let loadedProfile: StyleProfile = emptyStyleProfile;
 
@@ -222,7 +246,6 @@ function App() {
       setLastServerSave(null);
     }
 
-    // Try to load local draft (if any) — using SAME key as autosave
     if (proj) {
       const key = `ipublisher-draft-${proj.id}`;
       try {
@@ -256,7 +279,6 @@ function App() {
       setLastLocalSave(null);
     }
 
-    // Finally hydrate editor + style profile and clear dirty flag
     setManuscript(loadedManuscript);
     setStyleProfile(loadedProfile);
     setIsDirty(false);
@@ -556,13 +578,12 @@ function App() {
     });
   };
 
-   // Shared helper: import a file (text locally, others via server)
+  // Shared helper: import a file (text locally, others via server)
   const importManuscriptFile = async (file: File) => {
     setImportError(null);
 
     const lower = file.name.toLowerCase();
 
-    // Simple text types handled fully on the client
     if (lower.endsWith(".txt") || lower.endsWith(".md")) {
       return new Promise<void>((resolve, reject) => {
         const reader = new FileReader();
@@ -583,7 +604,6 @@ function App() {
       });
     }
 
-    // Everything else goes through the server /api/manuscripts/import-binary
     const formData = new FormData();
     formData.append("file", file);
 
@@ -622,7 +642,6 @@ function App() {
     }
   };
 
-  // File input handler – reuses importManuscriptFile
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -630,11 +649,10 @@ function App() {
     if (!file) return;
 
     await importManuscriptFile(file);
-
-    // Allow choosing the same file again later
     event.target.value = "";
   };
-const handleDropOnEditor = async (
+
+  const handleDropOnEditor = async (
     event: React.DragEvent<HTMLDivElement>
   ) => {
     event.preventDefault();
@@ -650,6 +668,7 @@ const handleDropOnEditor = async (
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   };
+
   const handleRewriteSelection = async (instruction: string) => {
     if (!editorRef.current) {
       alert("Editor not ready.");
@@ -760,6 +779,49 @@ const handleDropOnEditor = async (
     }
   };
 
+  const handleSendDevChat = async () => {
+    if (!devChatInput.trim()) return;
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: devChatInput.trim()
+    };
+
+    setDevChatMessages((prev) => [...prev, userMessage]);
+    setDevChatInput("");
+    setDevChatLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage.content
+        })
+      });
+
+      const data = await res.json();
+
+      const reply: ChatMessage = {
+        role: "assistant",
+        content: data.reply || "(no reply)"
+      };
+
+      setDevChatMessages((prev) => [...prev, reply]);
+    } catch (err) {
+      console.error("Dev chat failed", err);
+      setDevChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Error contacting AI coding console."
+        }
+      ]);
+    } finally {
+      setDevChatLoading(false);
+    }
+  };
+
   const handleGenerateOutline = async () => {
     if (!manuscript.trim()) {
       alert("Add some manuscript content first.");
@@ -843,7 +905,7 @@ const handleDropOnEditor = async (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: researchQuery.trim()
-                 })
+        })
       });
       const data = await res.json();
       setResearchResult({ mode: "search", data });
@@ -952,8 +1014,8 @@ const handleDropOnEditor = async (
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           claim: targetClaim,
-          context: manuscript.slice(0, 2000),
-                  })
+          context: manuscript.slice(0, 2000)
+        })
       });
       const data = await res.json();
       setResearchResult({ mode: "fact-check", data });
@@ -979,7 +1041,6 @@ const handleDropOnEditor = async (
 
     const lines: string[] = [];
 
-    // Basic info
     lines.push("=== KDP PROJECT SHEET ===");
     lines.push(`Title: ${selectedProject.title}`);
     lines.push("");
@@ -994,7 +1055,6 @@ const handleDropOnEditor = async (
     lines.push(`Notes to AI: ${styleProfile.notes || "(none)"}`);
     lines.push("");
 
-    // Formatting stats
     lines.push("=== FORMATTING SUMMARY ===");
     if (formatResult) {
       lines.push(`Word count: ${formatResult.wordCount}`);
@@ -1006,7 +1066,6 @@ const handleDropOnEditor = async (
     }
     lines.push("");
 
-    // Print specs
     lines.push("=== PRINT / COVER SPECS (APPROX.) ===");
     if (printSpecs) {
       lines.push(
@@ -1027,7 +1086,6 @@ const handleDropOnEditor = async (
     }
     lines.push("");
 
-    // Manuscript insights
     lines.push("=== MANUSCRIPT INSIGHTS ===");
     if (manuscriptInsights) {
       lines.push(`Total words: ${manuscriptInsights.totalWords}`);
@@ -1048,7 +1106,6 @@ const handleDropOnEditor = async (
     }
     lines.push("");
 
-    // Outline
     lines.push("=== CHAPTER OUTLINE / MAP ===");
     if (chapterOutline.trim()) {
       lines.push(chapterOutline.trim());
@@ -1057,7 +1114,6 @@ const handleDropOnEditor = async (
     }
     lines.push("");
 
-    // Back-cover blurb
     lines.push("=== BACK-COVER / MARKETING BLURB ===");
     if (backCoverBlurb.trim()) {
       lines.push(backCoverBlurb.trim());
@@ -1096,6 +1152,7 @@ const handleDropOnEditor = async (
     setResearchResult(null);
     setChapterOutline("");
     setIsDirty(false);
+    setActiveView("workspace");
   };
 
   const toggleSettings = () => {
@@ -1171,6 +1228,39 @@ const handleDropOnEditor = async (
               Create or open a project to start working with a manuscript.
             </p>
           )}
+
+          {/* View toggle */}
+          <div className="view-toggle">
+            <button
+              type="button"
+              className={
+                activeView === "workspace"
+                  ? "view-tab view-tab-active"
+                  : "view-tab"
+              }
+              onClick={() => setActiveView("workspace")}
+            >
+              Workspace
+            </button>
+            <button
+              type="button"
+              className={
+                activeView === "assistant"
+                  ? "view-tab view-tab-active"
+                  : "view-tab"
+              }
+              onClick={() => setActiveView("assistant")}
+              disabled={!selectedProject}
+              title={
+                !selectedProject
+                  ? "Open a project to use the Assistant view"
+                  : ""
+              }
+            >
+              Assistant
+            </button>
+          </div>
+
           <button onClick={toggleSettings}>
             {showSettings ? "Hide Settings" : "Settings"}
           </button>
@@ -1178,11 +1268,10 @@ const handleDropOnEditor = async (
       </header>
 
       <main className="app-main">
+        {/* SETTINGS PANEL (same for both views) */}
         {showSettings && (
           <section className="settings-panel">
             <h2>Settings</h2>
-
-      
 
             <div className="settings-group">
               <h3>Server &amp; AI Status</h3>
@@ -1210,717 +1299,748 @@ const handleDropOnEditor = async (
           </section>
         )}
 
-        {!selectedProject && (
-          <div className="library">
-            <section className="new-project">
-              <h2>Create New Project</h2>
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Book title"
-              />
-              <button onClick={handleCreateProject}>Create</button>
-            </section>
-
-            <section className="project-list">
-              <h2>Your Projects</h2>
-
-              {projectsLoading && <p>Loading projects…</p>}
-
-              {projectsError && (
-                <div className="error">
-                  <p>{projectsError}</p>
-                  <button onClick={handleRetryLoadProjects}>Retry</button>
-                </div>
-              )}
-
-              {!projectsLoading && !projectsError && projects.length === 0 && (
-                <p>No projects yet. Create one above.</p>
-              )}
-
-              <ul>
-                {projects.map((p) => (
-                  <li key={p.id} className="project-card">
-                    <div>
-                      <strong>{p.title}</strong>
-                      <p className="meta">
-                        Updated {new Date(p.updatedAt).toLocaleString()}
-                      </p>
-                    </div>
-                    <button onClick={() => handleSelectProject(p.id)}>
-                      Open
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-        )}
-
-        {selectedProject && (
-          <div className="workspace">
-            {/* ---------- Next Steps Strip (Guided Flow) ---------- */}
-            <section className="workflow-steps">
-              <h2>Next steps for this book</h2>
-              <ol>
-                <li>
-                  <strong>Step 1 – Load your manuscript</strong>
-                  <span> • Paste or upload, then click “Save Manuscript”.</span>
-                </li>
-                <li>
-                  <strong>Step 2 – Format &amp; print specs</strong>
-                  <span>
-                    {" "}
-                    • Click “Format (Stats Only)”, then “Calculate Print Specs”.
-                  </span>
-                </li>
-                <li>
-                  <strong>Step 3 – AI helpers</strong>
-                  <span>
-                    {" "}
-                    • Use “Generate Outline” and “Generate Back-cover Blurb”.
-                  </span>
-                </li>
-                <li>
-                  <strong>Step 4 – Export for KDP</strong>
-                  <span>
-                    {" "}
-                    • Download “Interior (.docx)” and “KDP Sheet (.txt)”.
-                  </span>
-                </li>
-              </ol>
-            </section>
-
-            <section className="editor-section">
-              <h2>Manuscript Editor</h2>
-
-               <div
-                className="upload-row drop-enabled"
-                onDragOver={handleDragOverEditor}
-                onDrop={handleDropOnEditor}
-              >
-                <label>
-                  Upload or drop manuscript file:
+        {/* ---------- WORKSPACE VIEW (manuscript, formatting, etc.) ---------- */}
+        {activeView === "workspace" && (
+          <>
+            {!selectedProject && (
+              <div className="library">
+                <section className="new-project">
+                  <h2>Create New Project</h2>
                   <input
-                    type="file"
-                    accept=".txt,.md,.doc,.docx,.pdf,.epub"
-                    onChange={handleFileUpload}
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="Book title"
                   />
-                </label>
-                <p className="upload-hint">
-                  • Click to choose a file, or drag &amp; drop it anywhere in this box.{" "}
-                  Supported types: .txt, .md, .doc, .docx, .pdf, .epub.
-                  <br />
-                  • The imported text will replace the current manuscript in the editor.
-                  Remember to click "Save Manuscript" after reviewing.
-                </p>
+                  <button onClick={handleCreateProject}>Create</button>
+                </section>
 
-                {importLoading && (
-                  <p className="import-status">
-                    Importing file and extracting text…
-                  </p>
-                )}
-                {importError && <p className="error">{importError}</p>}
+                <section className="project-list">
+                  <h2>Your Projects</h2>
+
+                  {projectsLoading && <p>Loading projects…</p>}
+
+                  {projectsError && (
+                    <div className="error">
+                      <p>{projectsError}</p>
+                      <button onClick={handleRetryLoadProjects}>Retry</button>
+                    </div>
+                  )}
+
+                  {!projectsLoading &&
+                    !projectsError &&
+                    projects.length === 0 && (
+                      <p>No projects yet. Create one above.</p>
+                    )}
+
+                  <ul>
+                    {projects.map((p) => (
+                      <li key={p.id} className="project-card">
+                        <div>
+                          <strong>{p.title}</strong>
+                          <p className="meta">
+                            Updated {new Date(p.updatedAt).toLocaleString()}
+                          </p>
+                        </div>
+                        <button onClick={() => handleSelectProject(p.id)}>
+                          Open
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               </div>
+            )}
 
-              <div className="format-options">
-                <div>
-                  <label>
-                    Trim size:
-                    <select
-                      value={trimSize}
-                      onChange={(e) =>
-                        setTrimSize(e.target.value as "6x9" | "8.5x11")
-                      }
-                    >
-                      <option value="6x9">
-                        6&quot; x 9&quot; (paperback standard)
-                      </option>
-                      <option value="8.5x11">
-                        8.5&quot; x 11&quot; (workbook / large)
-                      </option>
-                    </select>
-                  </label>
-                </div>
-                <div>
-                  <label>
-                    Line spacing:
-                    <select
-                      value={lineSpacing}
-                      onChange={(e) =>
-                        setLineSpacing(parseFloat(e.target.value))
-                      }
-                    >
-                      <option value={1}>1.0</option>
-                      <option value={1.15}>1.15</option>
-                      <option value={1.5}>1.5</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
+            {selectedProject && (
+              <div className="workspace">
+                {/* ---------- Next Steps Strip (Guided Flow) ---------- */}
+                <section className="workflow-steps">
+                  <h2>Next steps for this book</h2>
+                  <ol>
+                    <li>
+                      <strong>Step 1 – Load your manuscript</strong>
+                      <span>
+                        {" "}
+                        • Paste or upload, then click “Save Manuscript”.
+                      </span>
+                    </li>
+                    <li>
+                      <strong>Step 2 – Format &amp; print specs</strong>
+                      <span>
+                        {" "}
+                        • Click “Format (Stats Only)”, then “Calculate Print
+                        Specs”.
+                      </span>
+                    </li>
+                    <li>
+                      <strong>Step 3 – AI helpers</strong>
+                      <span>
+                        {" "}
+                        • Use “Generate Outline” and “Generate Back-cover
+                        Blurb”.
+                      </span>
+                    </li>
+                    <li>
+                      <strong>Step 4 – Export for KDP</strong>
+                      <span>
+                        {" "}
+                        • Download “Interior (.docx)” and “KDP Sheet (.txt)”.
+                      </span>
+                    </li>
+                  </ol>
+                </section>
 
-              <textarea
-                ref={editorRef}
-                value={manuscript}
-                onChange={(e) => {
-                  setManuscript(e.target.value);
-                  setIsDirty(true);
-                }}
-                rows={20}
-                placeholder="Write or paste your manuscript here..."
-              />
+                {/* ---------- Manuscript Editor & Tools ---------- */}
+                <section className="editor-section">
+                  <h2>Manuscript Editor</h2>
 
-              <div className="editor-actions">
-                <button onClick={handleSaveManuscript}>Save Manuscript</button>
-                <button onClick={handleFormat}>Format (Stats Only)</button>
-                <button onClick={handleDownloadManuscript}>
-                  Download Manuscript (.txt)
-                </button>
-                <button onClick={handleDownloadDocx}>
-                  Download Interior (.docx)
-                </button>
-              </div>
-
-              {rewriteLoading && (
-                <p className="rewrite-status">Rewriting selection…</p>
-              )}
-
-              <div className="rewrite-actions">
-                <p className="rewrite-label">AI rewrite selected text:</p>
-                <div className="rewrite-buttons">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleRewriteSelection(
-                        "Rewrite this to be clearer and more concise, while preserving the author's tone."
-                      )
-                    }
-                    disabled={rewriteLoading}
+                  <div
+                    className="upload-row drop-enabled"
+                    onDragOver={handleDragOverEditor}
+                    onDrop={handleDropOnEditor}
                   >
-                    Clearer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleRewriteSelection(
-                        "Rewrite this to be shorter and more compact, keeping the same meaning."
-                      )
-                    }
-                    disabled={rewriteLoading}
-                  >
-                    Shorter
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleRewriteSelection(
-                        "Rewrite this to feel more vivid and emotionally resonant, without becoming purple prose."
-                      )
-                    }
-                    disabled={rewriteLoading}
-                  >
-                    More vivid
-                  </button>
-                </div>
-              </div>
-
-              {formatResult && (
-                <div className="format-result">
-                  <h3>Formatting Summary</h3>
-                  <p>Word count: {formatResult.wordCount}</p>
-                  <p>Estimated pages: {formatResult.estimatedPages}</p>
-                  <p>Trim size: {formatResult.trimSize}</p>
-                  <p>Line spacing: {formatResult.lineSpacing}</p>
-                </div>
-              )}
-
-              <div className="print-specs">
-                <h3>Print / Cover Specs (Approx.)</h3>
-                <p className="print-hint">
-                  Use the estimated pages or override with your final KDP page
-                  count. Values are approximate—always confirm with KDP’s cover
-                  calculator before final upload.
-                </p>
-                <div className="print-controls">
-                  <label>
-                    Page count (optional override):
-                    <input
-                      type="number"
-                      min={1}
-                      value={pageCountOverride}
-                      onChange={(e) => setPageCountOverride(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Paper type:
-                    <select
-                      value={paperType}
-                      onChange={(e) => setPaperType(e.target.value)}
-                    >
-                      <option value="white">White (B&amp;W)</option>
-                      <option value="cream">Cream (B&amp;W)</option>
-                      <option value="color">Color</option>
-                    </select>
-                  </label>
-                </div>
-                <button onClick={handleCalculatePrintSpecs}>
-                  Calculate Print Specs
-                </button>
-
-                {printSpecs && (
-                  <div className="print-specs-output">
-                    <p>
-                      Using <strong>{printSpecs.pageCount}</strong> pages at{" "}
-                      <strong>{printSpecs.trim}</strong> on{" "}
-                      <strong>{printSpecs.paperType}</strong> paper.
+                    <label>
+                      Upload or drop manuscript file:
+                      <input
+                        type="file"
+                        accept=".txt,.md,.doc,.docx,.pdf,.epub"
+                        onChange={handleFileUpload}
+                      />
+                    </label>
+                    <p className="upload-hint">
+                      • Click to choose a file, or drag &amp; drop it anywhere
+                      in this box. Supported types: .txt, .md, .doc, .docx,
+                      .pdf, .epub.
+                      <br />
+                      • The imported text will replace the current manuscript in
+                      the editor. Remember to click &quot;Save Manuscript&quot;
+                      after reviewing.
                     </p>
-                    <p>
-                      Spine width:{" "}
-                      <strong>
-                        {printSpecs.spineWidthIn.toFixed(3)} in (
-                        {printSpecs.spineWidthMm.toFixed(2)} mm)
-                      </strong>
+
+                    {importLoading && (
+                      <p className="import-status">
+                        Importing file and extracting text…
+                      </p>
+                    )}
+                    {importError && <p className="error">{importError}</p>}
+                  </div>
+
+                  <div className="format-options">
+                    <div>
+                      <label>
+                        Trim size:
+                        <select
+                          value={trimSize}
+                          onChange={(e) =>
+                            setTrimSize(e.target.value as "6x9" | "8.5x11")
+                          }
+                        >
+                          <option value="6x9">
+                            6&quot; x 9&quot; (paperback standard)
+                          </option>
+                          <option value="8.5x11">
+                            8.5&quot; x 11&quot; (workbook / large)
+                          </option>
+                        </select>
+                      </label>
+                    </div>
+                    <div>
+                      <label>
+                        Line spacing:
+                        <select
+                          value={lineSpacing}
+                          onChange={(e) =>
+                            setLineSpacing(parseFloat(e.target.value))
+                          }
+                        >
+                          <option value={1}>1.0</option>
+                          <option value={1.15}>1.15</option>
+                          <option value={1.5}>1.5</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+
+                  <textarea
+                    ref={editorRef}
+                    value={manuscript}
+                    onChange={(e) => {
+                      setManuscript(e.target.value);
+                      setIsDirty(true);
+                    }}
+                    rows={20}
+                    placeholder="Write or paste your manuscript here..."
+                  />
+
+                  <div className="editor-actions">
+                    <button onClick={handleSaveManuscript}>
+                      Save Manuscript
+                    </button>
+                    <button onClick={handleFormat}>Format (Stats Only)</button>
+                    <button onClick={handleDownloadManuscript}>
+                      Download Manuscript (.txt)
+                    </button>
+                    <button onClick={handleDownloadDocx}>
+                      Download Interior (.docx)
+                    </button>
+                  </div>
+
+                  {rewriteLoading && (
+                    <p className="rewrite-status">Rewriting selection…</p>
+                  )}
+
+                  <div className="rewrite-actions">
+                    <p className="rewrite-label">
+                      AI rewrite selected text:
                     </p>
-                    <p>
-                      Full cover size (incl. bleed, approx.):{" "}
-                      <strong>
-                        {printSpecs.fullCoverWidthIn.toFixed(3)} in wide ×{" "}
-                        {printSpecs.fullCoverHeightIn.toFixed(3)} in tall
-                      </strong>
-                    </p>
+                    <div className="rewrite-buttons">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRewriteSelection(
+                            "Rewrite this to be clearer and more concise, while preserving the author's tone."
+                          )
+                        }
+                        disabled={rewriteLoading}
+                      >
+                        Clearer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRewriteSelection(
+                            "Rewrite this to be shorter and more compact, keeping the same meaning."
+                          )
+                        }
+                        disabled={rewriteLoading}
+                      >
+                        Shorter
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRewriteSelection(
+                            "Rewrite this to feel more vivid and emotionally resonant, without becoming purple prose."
+                          )
+                        }
+                        disabled={rewriteLoading}
+                      >
+                        More vivid
+                      </button>
+                    </div>
+                  </div>
+
+                  {formatResult && (
+                    <div className="format-result">
+                      <h3>Formatting Summary</h3>
+                      <p>Word count: {formatResult.wordCount}</p>
+                      <p>Estimated pages: {formatResult.estimatedPages}</p>
+                      <p>Trim size: {formatResult.trimSize}</p>
+                      <p>Line spacing: {formatResult.lineSpacing}</p>
+                    </div>
+                  )}
+
+                  <div className="print-specs">
+                    <h3>Print / Cover Specs (Approx.)</h3>
                     <p className="print-hint">
-                      Use these as planning values and cross-check with your
-                      actual KDP project.
+                      Use the estimated pages or override with your final KDP
+                      page count. Values are approximate—always confirm with
+                      KDP’s cover calculator before final upload.
                     </p>
-
-                    {coverTemplateJSON && (
-                      <div className="cover-helper">
-                        <h4>Cover Template (JSON)</h4>
-                        <p className="print-hint">
-                          Copy this into your design notes, Figma, or other
-                          tools as a quick reference.
-                        </p>
-                        <textarea
-                          className="cover-json-textarea"
-                          readOnly
-                          rows={8}
-                          value={coverTemplateJSON}
+                    <div className="print-controls">
+                      <label>
+                        Page count (optional override):
+                        <input
+                          type="number"
+                          min={1}
+                          value={pageCountOverride}
+                          onChange={(e) =>
+                            setPageCountOverride(e.target.value)
+                          }
                         />
+                      </label>
+                      <label>
+                        Paper type:
+                        <select
+                          value={paperType}
+                          onChange={(e) => setPaperType(e.target.value)}
+                        >
+                          <option value="white">White (B&amp;W)</option>
+                          <option value="cream">Cream (B&amp;W)</option>
+                          <option value="color">Color</option>
+                        </select>
+                      </label>
+                    </div>
+                    <button onClick={handleCalculatePrintSpecs}>
+                      Calculate Print Specs
+                    </button>
+
+                    {printSpecs && (
+                      <div className="print-specs-output">
+                        <p>
+                          Using <strong>{printSpecs.pageCount}</strong> pages at{" "}
+                          <strong>{printSpecs.trim}</strong> on{" "}
+                          <strong>{printSpecs.paperType}</strong> paper.
+                        </p>
+                        <p>
+                          Spine width:{" "}
+                          <strong>
+                            {printSpecs.spineWidthIn.toFixed(3)} in (
+                            {printSpecs.spineWidthMm.toFixed(2)} mm)
+                          </strong>
+                        </p>
+                        <p>
+                          Full cover size (incl. bleed, approx.):{" "}
+                          <strong>
+                            {printSpecs.fullCoverWidthIn.toFixed(3)} in wide ×{" "}
+                            {printSpecs.fullCoverHeightIn.toFixed(3)} in tall
+                          </strong>
+                        </p>
+                        <p className="print-hint">
+                          Use these as planning values and cross-check with your
+                          actual KDP project.
+                        </p>
+
+                        {coverTemplateJSON && (
+                          <div className="cover-helper">
+                            <h4>Cover Template (JSON)</h4>
+                            <p className="print-hint">
+                              Copy this into your design notes, Figma, or other
+                              tools as a quick reference.
+                            </p>
+                            <textarea
+                              className="cover-json-textarea"
+                              readOnly
+                              rows={8}
+                              value={coverTemplateJSON}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
+
+                  <div className="insights-section">
+                    <h3>Manuscript Insights</h3>
+                    <p className="print-hint">
+                      Quick stats based on your current manuscript. Chapter
+                      detection is approximate and looks for lines like
+                      &quot;Chapter 1&quot; or &quot;CHAPTER II&quot;.
+                    </p>
+                    <button onClick={handleAnalyzeManuscript}>
+                      Analyze Manuscript
+                    </button>
+
+                    {manuscriptInsights && (
+                      <div className="insights-output">
+                        <p>
+                          Total words:{" "}
+                          <strong>{manuscriptInsights.totalWords}</strong>
+                        </p>
+                        <p>
+                          Approx. reading time:{" "}
+                          <strong>
+                            {manuscriptInsights.readingMinutesRounded} minutes
+                          </strong>
+                        </p>
+                        <p>
+                          Chapter-like sections detected:{" "}
+                          <strong>{manuscriptInsights.chapterCount}</strong>
+                        </p>
+                        <p>
+                          Avg. words per chapter:{" "}
+                          <strong>
+                            {manuscriptInsights.avgWordsPerChapter}
+                          </strong>
+                        </p>
+                        <p>
+                          Longest section:{" "}
+                          <strong>
+                            {manuscriptInsights.longest.title} (
+                            {manuscriptInsights.longest.wordCount} words)
+                          </strong>
+                        </p>
+                        <p>
+                          Shortest section:{" "}
+                          <strong>
+                            {manuscriptInsights.shortest.title} (
+                            {manuscriptInsights.shortest.wordCount} words)
+                          </strong>
+                        </p>
+
+                        <details>
+                          <summary>Show all chapter-like sections</summary>
+                          <ul>
+                            {manuscriptInsights.chapterSummaries.map(
+                              (ch: any, idx: number) => (
+                                <li key={idx}>
+                                  <strong>{ch.title}</strong> –{" "}
+                                  {ch.wordCount} words
+                                </li>
+                              )
+                            )}
+                          </ul>
+                        </details>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="outline-section">
+                    <h3>AI Outline &amp; Chapter Map</h3>
+                    <p className="print-hint">
+                      Generate a structured overview of your book based on the
+                      manuscript and your style profile. Helpful for revision,
+                      KDP copy, or series planning.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleGenerateOutline}
+                      disabled={outlineLoading || !manuscript.trim()}
+                    >
+                      {outlineLoading
+                        ? "Generating outline..."
+                        : "Generate Outline"}
+                    </button>
+
+                    <textarea
+                      className="outline-textarea"
+                      value={chapterOutline}
+                      onChange={(e) => setChapterOutline(e.target.value)}
+                      rows={10}
+                      placeholder="The AI-generated outline will appear here. You can edit, annotate, or copy it into your notes."
+                    />
+                  </div>
+
+                  <div className="style-section">
+                    <h3>Style &amp; Voice Profile</h3>
+                    <p className="print-hint">
+                      This profile travels with the project and guides rewrites,
+                      chat, and back-cover copy.
+                    </p>
+
+                    <div className="style-grid">
+                      <label>
+                        Tone / Mood
+                        <input
+                          type="text"
+                          value={styleProfile.tone}
+                          onChange={(e) => {
+                            setStyleProfile((prev) => ({
+                              ...prev,
+                              tone: e.target.value
+                            }));
+                            setIsDirty(true);
+                          }}
+                          placeholder="introspective, mystical, grounded…"
+                        />
+                      </label>
+
+                      <label>
+                        Audience
+                        <input
+                          type="text"
+                          value={styleProfile.audience}
+                          onChange={(e) => {
+                            setStyleProfile((prev) => ({
+                              ...prev,
+                              audience: e.target.value
+                            }));
+                            setIsDirty(true);
+                          }}
+                          placeholder="spiritually curious adults…"
+                        />
+                      </label>
+
+                      <label>
+                        Genre
+                        <input
+                          type="text"
+                          value={styleProfile.genre}
+                          onChange={(e) => {
+                            setStyleProfile((prev) => ({
+                              ...prev,
+                              genre: e.target.value
+                            }));
+                            setIsDirty(true);
+                          }}
+                          placeholder="metaphysical non-fiction, sci-fi, memoir…"
+                        />
+                      </label>
+
+                      <label>
+                        POV
+                        <input
+                          type="text"
+                          value={styleProfile.pov}
+                          onChange={(e) => {
+                            setStyleProfile((prev) => ({
+                              ...prev,
+                              pov: e.target.value
+                            }));
+                            setIsDirty(true);
+                          }}
+                          placeholder="first person, third person limited…"
+                        />
+                      </label>
+
+                      <label>
+                        Tense
+                        <input
+                          type="text"
+                          value={styleProfile.tense}
+                          onChange={(e) => {
+                            setStyleProfile((prev) => ({
+                              ...prev,
+                              tense: e.target.value
+                            }));
+                            setIsDirty(true);
+                          }}
+                          placeholder="present, past…"
+                        />
+                      </label>
+
+                      <label>
+                        Pacing
+                        <input
+                          type="text"
+                          value={styleProfile.pacing}
+                          onChange={(e) => {
+                            setStyleProfile((prev) => ({
+                              ...prev,
+                              pacing: e.target.value
+                            }));
+                            setIsDirty(true);
+                          }}
+                          placeholder="slow and reflective, fast and intense…"
+                        />
+                      </label>
+
+                      <label>
+                        Formality
+                        <input
+                          type="text"
+                          value={styleProfile.formality}
+                          onChange={(e) => {
+                            setStyleProfile((prev) => ({
+                              ...prev,
+                              formality: e.target.value
+                            }));
+                            setIsDirty(true);
+                          }}
+                          placeholder="casual, medium-formal, poetic…"
+                        />
+                      </label>
+                    </div>
+
+                    <label className="style-notes-label">
+                      Additional notes to the AI
+                      <textarea
+                        rows={3}
+                        value={styleProfile.notes}
+                        onChange={(e) => {
+                          setStyleProfile((prev) => ({
+                            ...prev,
+                            notes: e.target.value
+                          }));
+                          setIsDirty(true);
+                        }}
+                        placeholder="Anything else about your voice, rhythm, or what to avoid..."
+                      />
+                    </label>
+                  </div>
+
+                  <div className="marketing-section">
+                    <h3>Back-cover / Marketing Copy</h3>
+                    <p className="print-hint">
+                      Generate a draft back-cover description using your current
+                      manuscript and style profile as context. You can refine or
+                      edit the result manually after generation.
+                    </p>
+                    <div className="marketing-buttons-row">
+                      <button
+                        type="button"
+                        onClick={handleGenerateBackCover}
+                        disabled={backCoverLoading || !manuscript.trim()}
+                      >
+                        {backCoverLoading
+                          ? "Generating back-cover description..."
+                          : "Generate Back-cover Blurb"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadKdpSheet}
+                        disabled={!selectedProject}
+                        style={{ marginLeft: "0.75rem" }}
+                      >
+                        Download KDP Sheet (.txt)
+                      </button>
+                    </div>
+
+                    <textarea
+                      className="marketing-textarea"
+                      value={backCoverBlurb}
+                      onChange={(e) => setBackCoverBlurb(e.target.value)}
+                      rows={6}
+                      placeholder="Generated back-cover description will appear here. You can edit it freely."
+                    />
+                  </div>
+                </section>
               </div>
+            )}
+          </>
+        )}
 
-              <div className="insights-section">
-                <h3>Manuscript Insights</h3>
-                <p className="print-hint">
-                  Quick stats based on your current manuscript. Chapter
-                  detection is approximate and looks for lines like
-                  &quot;Chapter 1&quot; or &quot;CHAPTER II&quot;.
-                </p>
-                <button onClick={handleAnalyzeManuscript}>
-                  Analyze Manuscript
-                </button>
+        {/* ---------- ASSISTANT VIEW (full-screen AI consoles) ---------- */}
+        {activeView === "assistant" && selectedProject && (
+          <div className="assistant-page">
+            <header className="assistant-header">
+              <h2>AI Assistant for: {selectedProject.title}</h2>
+              <p className="assistant-subtitle">
+                Co-author, developer console, and model status in one focused
+                space.
+              </p>
+            </header>
 
-                {manuscriptInsights && (
-                  <div className="insights-output">
-                    <p>
-                      Total words:{" "}
-                      <strong>{manuscriptInsights.totalWords}</strong>
-                    </p>
-                    <p>
-                      Approx. reading time:{" "}
-                      <strong>
-                        {manuscriptInsights.readingMinutesRounded} minutes
-                      </strong>
-                    </p>
-                    <p>
-                      Chapter-like sections detected:{" "}
-                      <strong>{manuscriptInsights.chapterCount}</strong>
-                    </p>
-                    <p>
-                      Avg. words per chapter:{" "}
-                      <strong>
-                        {manuscriptInsights.avgWordsPerChapter}
-                      </strong>
-                    </p>
-                    <p>
-                      Longest section:{" "}
-                      <strong>
-                        {manuscriptInsights.longest.title} (
-                        {manuscriptInsights.longest.wordCount} words)
-                      </strong>
-                    </p>
-                    <p>
-                      Shortest section:{" "}
-                      <strong>
-                        {manuscriptInsights.shortest.title} (
-                        {manuscriptInsights.shortest.wordCount} words)
-                      </strong>
+            <div className="assistant-layout">
+              {/* Left: AI Consoles */}
+              <section className="chat-section chat-section-full">
+                <h3>AI Consoles</h3>
+
+                {/* Tab buttons */}
+                <div className="console-tabs">
+                  <button
+                    type="button"
+                    className={
+                      consoleTab === "book"
+                        ? "console-tab console-tab-active"
+                        : "console-tab"
+                    }
+                    onClick={() => setConsoleTab("book")}
+                  >
+                    📖 Book Co-Author
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      consoleTab === "dev"
+                        ? "console-tab console-tab-active"
+                        : "console-tab"
+                    }
+                    onClick={() => setConsoleTab("dev")}
+                  >
+                    💻 Dev / Coding Console
+                  </button>
+                </div>
+
+                {/* --- Book Co-author console (contextual chat) --- */}
+                {consoleTab === "book" && (
+                  <div className="console-pane console-pane-animated">
+                    <p className="console-hint">
+                      This console talks about your{" "}
+                      <strong>current manuscript</strong> and
+                      <strong> style profile</strong>. Use it for structure,
+                      pacing, tone, chapter ideas, etc.
                     </p>
 
-                    <details>
-                      <summary>Show all chapter-like sections</summary>
-                      <ul>
-                        {manuscriptInsights.chapterSummaries.map(
-                          (ch: any, idx: number) => (
-                            <li key={idx}>
-                              <strong>{ch.title}</strong> – {ch.wordCount} words
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </details>
+                    <div className="chat-log chat-log-large">
+                      {chatMessages.length === 0 && (
+                        <p className="chat-placeholder">
+                          Ask the AI about your manuscript, structure, tone, or
+                          ideas. It will use the current manuscript text and
+                          style profile as context.
+                        </p>
+                      )}
+                      {chatMessages.map((m, idx) => (
+                        <div
+                          key={idx}
+                          className={
+                            m.role === "user"
+                              ? "chat-msg user"
+                              : "chat-msg assistant"
+                          }
+                        >
+                          <strong>{m.role === "user" ? "You" : "AI"}</strong>
+                          <p>{m.content}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="chat-input-row">
+                      <textarea
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        rows={4}
+                        placeholder="Ask about structure, tone, pacing, or how to revise a chapter…"
+                      />
+                      <button
+                        onClick={handleSendChat}
+                        disabled={chatLoading}
+                      >
+                        {chatLoading ? "Sending..." : "Send"}
+                      </button>
+                    </div>
                   </div>
                 )}
-              </div>
 
-              <div className="outline-section">
-                <h3>AI Outline &amp; Chapter Map</h3>
-                <p className="print-hint">
-                  Generate a structured overview of your book based on the
-                  manuscript and your style profile. Helpful for revision, KDP
-                  copy, or series planning.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleGenerateOutline}
-                  disabled={outlineLoading || !manuscript.trim()}
-                >
-                  {outlineLoading ? "Generating outline..." : "Generate Outline"}
-                </button>
+                {/* --- Dev / Coding console (general AI) --- */}
+                {consoleTab === "dev" && (
+                  <div className="console-pane console-pane-animated">
+                    <p className="console-hint">
+                      This console is for{" "}
+                      <strong>
+                        building and debugging Infinite Publisher
+                      </strong>
+                      . It doesn’t see your manuscript automatically — paste
+                      code snippets, error messages, or ideas you want to
+                      explore.
+                    </p>
 
-                <textarea
-                  className="outline-textarea"
-                  value={chapterOutline}
-                  onChange={(e) => setChapterOutline(e.target.value)}
-                  rows={10}
-                  placeholder="The AI-generated outline will appear here. You can edit, annotate, or copy it into your notes."
-                />
-              </div>
+                    <div className="chat-log chat-log-large">
+                      {devChatMessages.length === 0 && (
+                        <p className="chat-placeholder">
+                          Paste an error message, code snippet, or ask about new
+                          features you want to build into the app.
+                        </p>
+                      )}
+                      {devChatMessages.map((m, idx) => (
+                        <div
+                          key={idx}
+                          className={
+                            m.role === "user"
+                              ? "chat-msg user"
+                              : "chat-msg assistant"
+                          }
+                        >
+                          <strong>{m.role === "user" ? "You" : "AI"}</strong>
+                          <p>{m.content}</p>
+                        </div>
+                      ))}
+                    </div>
 
-              <div className="style-section">
-                <h3>Style &amp; Voice Profile</h3>
-                <p className="print-hint">
-                  This profile travels with the project and guides rewrites,
-                  chat, and back-cover copy.
-                </p>
+                    <div className="chat-input-row">
+                      <textarea
+                        value={devChatInput}
+                        onChange={(e) => setDevChatInput(e.target.value)}
+                        rows={4}
+                        placeholder="Ask about Electron packaging, API design, error messages, or future upgrades…"
+                      />
+                      <button
+                        onClick={handleSendDevChat}
+                        disabled={devChatLoading}
+                      >
+                        {devChatLoading ? "Sending..." : "Send"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
 
-                <div className="style-grid">
-                  <label>
-                    Tone / Mood
-                    <input
-                      type="text"
-                      value={styleProfile.tone}
-                      onChange={(e) => {
-                        setStyleProfile((prev) => ({
-                          ...prev,
-                          tone: e.target.value
-                        }));
-                        setIsDirty(true);
-                      }}
-                      placeholder="introspective, mystical, grounded…"
-                    />
-                  </label>
-
-                  <label>
-                    Audience
-                    <input
-                      type="text"
-                      value={styleProfile.audience}
-                      onChange={(e) => {
-                        setStyleProfile((prev) => ({
-                          ...prev,
-                          audience: e.target.value
-                        }));
-                        setIsDirty(true);
-                      }}
-                      placeholder="spiritually curious adults…"
-                    />
-                  </label>
-
-                  <label>
-                    Genre
-                    <input
-                      type="text"
-                      value={styleProfile.genre}
-                      onChange={(e) => {
-                        setStyleProfile((prev) => ({
-                          ...prev,
-                          genre: e.target.value
-                        }));
-                        setIsDirty(true);
-                      }}
-                      placeholder="metaphysical non-fiction, sci-fi, memoir…"
-                    />
-                  </label>
-
-                  <label>
-                    POV
-                    <input
-                      type="text"
-                      value={styleProfile.pov}
-                      onChange={(e) => {
-                        setStyleProfile((prev) => ({
-                          ...prev,
-                          pov: e.target.value
-                        }));
-                        setIsDirty(true);
-                      }}
-                      placeholder="first person, third person limited…"
-                    />
-                  </label>
-
-                  <label>
-                    Tense
-                    <input
-                      type="text"
-                      value={styleProfile.tense}
-                      onChange={(e) => {
-                        setStyleProfile((prev) => ({
-                          ...prev,
-                          tense: e.target.value
-                        }));
-                        setIsDirty(true);
-                      }}
-                      placeholder="present, past…"
-                    />
-                  </label>
-
-                  <label>
-                    Pacing
-                    <input
-                      type="text"
-                      value={styleProfile.pacing}
-                      onChange={(e) => {
-                        setStyleProfile((prev) => ({
-                          ...prev,
-                          pacing: e.target.value
-                        }));
-                        setIsDirty(true);
-                      }}
-                      placeholder="slow and reflective, fast and intense…"
-                    />
-                  </label>
-
-                  <label>
-                    Formality
-                    <input
-                      type="text"
-                      value={styleProfile.formality}
-                      onChange={(e) => {
-                        setStyleProfile((prev) => ({
-                          ...prev,
-                          formality: e.target.value
-                        }));
-                        setIsDirty(true);
-                      }}
-                      placeholder="casual, medium-formal, poetic…"
-                    />
-                  </label>
-                </div>
-
-                <label className="style-notes-label">
-                  Additional notes to the AI
-                  <textarea
-                    rows={3}
-                    value={styleProfile.notes}
-                    onChange={(e) => {
-                      setStyleProfile((prev) => ({
-                        ...prev,
-                        notes: e.target.value
-                      }));
-                      setIsDirty(true);
-                    }}
-                    placeholder="Anything else about your voice, rhythm, or what to avoid..."
-                  />
-                </label>
-              </div>
-
-              <div className="marketing-section">
-                <h3>Back-cover / Marketing Copy</h3>
-                <p className="print-hint">
-                  Generate a draft back-cover description using your current
-                  manuscript and style profile as context. You can refine or
-                  edit the result manually after generation.
-                </p>
-                <div className="marketing-buttons-row">
-                  <button
-                    type="button"
-                    onClick={handleGenerateBackCover}
-                    disabled={backCoverLoading || !manuscript.trim()}
-                  >
-                    {backCoverLoading
-                      ? "Generating back-cover description..."
-                      : "Generate Back-cover Blurb"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleDownloadKdpSheet}
-                    disabled={!selectedProject}
-                    style={{ marginLeft: "0.75rem" }}
-                  >
-                    Download KDP Sheet (.txt)
-                  </button>
-                </div>
-
-                <textarea
-                  className="marketing-textarea"
-                  value={backCoverBlurb}
-                  onChange={(e) => setBackCoverBlurb(e.target.value)}
-                  rows={6}
-                  placeholder="Generated back-cover description will appear here. You can edit it freely."
-                />
-              </div>
-            </section>
-
-           <section className="chat-section">
-  <h2>AI Chat</h2>
-  <div className="chat-log">
-    {chatMessages.length === 0 && (
-      <p className="chat-placeholder">
-        Ask the AI about your manuscript, structure, tone, or ideas.
-        It will use the current manuscript text and style profile as
-        context.
-      </p>
-    )}
-    {chatMessages.map((m, idx) => (
-      <div
-        key={idx}
-        className={
-          m.role === "user" ? "chat-msg user" : "chat-msg assistant"
-        }
-      >
-        <strong>{m.role === "user" ? "You" : "AI"}</strong>
-        <p>{m.content}</p>
-      </div>
-    ))}
-  </div>
-
-  <div className="chat-input-row">
-    <textarea
-      value={chatInput}
-      onChange={(e) => setChatInput(e.target.value)}
-      rows={3}
-      placeholder="Ask something..."
-    />
-    <button onClick={handleSendChat} disabled={chatLoading}>
-      {chatLoading ? "Sending..." : "Send"}
-    </button>
-  </div>
-
-  {/* ----- Research Tools ----- */}
-  <section className="research-section">
-    <h2>Research &amp; Fact-check (Beta)</h2>
-
-    <div className="research-block">
-      <h3>Web Search</h3>
-      <input
-        type="text"
-        value={researchQuery}
-        onChange={(e) => setResearchQuery(e.target.value)}
-        placeholder="Search topic, concept, or reference…"
-      />
-      <div className="research-buttons-row">
-        <button onClick={handleRunResearch} disabled={researchLoading}>
-          {researchLoading ? "Searching..." : "Run Search"}
-        </button>
-        <button
-          type="button"
-          onClick={handleSuggestResearchTopics}
-          disabled={!manuscript.trim()}
-        >
-          Suggest from Manuscript
-        </button>
-      </div>
-
-      {researchSuggestions.length > 0 && (
-        <div className="research-suggestions">
-          <p className="settings-hint">
-            Click a suggestion to use it as your query:
-          </p>
-          <div className="suggestion-chips">
-            {researchSuggestions.map((s, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setResearchQuery(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-
-    <div className="research-block">
-      <h3>Fact-check Claim</h3>
-      <textarea
-        value={factClaim}
-        onChange={(e) => setFactClaim(e.target.value)}
-        rows={3}
-        placeholder="Type a statement you want to verify…"
-      />
-      <button onClick={handleFactCheck} disabled={researchLoading}>
-        {researchLoading ? "Checking..." : "Fact-check"}
-      </button>
-    </div>
-
-    {researchResult && researchResult.mode === "search" && (
-      <div className="research-results">
-        <h3>Search Results for “{researchResult.data.query}”</h3>
-        <p>{researchResult.data.summary}</p>
-        <ul>
-          {researchResult.data.sources.map((s: any, idx: number) => (
-            <li key={idx}>
-              <a href={s.url} target="_blank" rel="noreferrer">
-                {s.title}
-              </a>
-              <p>{s.snippet}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    )}
-
-    {researchResult && researchResult.mode === "fact-check" && (
-      <div className="research-results">
-        <h3>Fact-check Result</h3>
-        <p>
-          <strong>Claim:</strong> {researchResult.data.claim}
-        </p>
-        <p>
-          <strong>Result:</strong>{" "}
-          {researchResult.data.result.toUpperCase()}
-        </p>
-        <p>{researchResult.data.explanation}</p>
-        <h4>Sources</h4>
-        <ul>
-          {researchResult.data.sources.map((s: any, idx: number) => (
-            <li key={idx}>
-              <a href={s.url} target="_blank" rel="noreferrer">
-                {s.title}
-              </a>
-              <p>{s.snippet}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    )}
-
-    {researchResult && researchResult.mode === "error" && (
-      <div className="research-results">
-        <p>{researchResult.data.message}</p>
-      </div>
-    )}
-  </section>
-
-  {/* ---------- AI Model Status Panel ---------- */}
-  <ModelStatusPanel apiBase={API_BASE} />
-</section>
+              {/* Right: Model status / quick info */}
+              <aside className="assistant-sidebar">
+                <ModelStatusPanel apiBase={API_BASE} />
+              </aside>
+            </div>
           </div>
         )}
       </main>

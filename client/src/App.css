@@ -1,9 +1,16 @@
-/* ========= Base layout ========= */
+/* ========= Global / Base layout ========= */
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
 }
 
 body {
@@ -14,10 +21,22 @@ body {
   color: #0f172a;
 }
 
+/* Root container – simple layout so page can scroll normally */
 .app-root {
   min-height: 100vh;
   background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%);
   color: #0f172a;
+}
+
+/* Main content area – no internal scroll; browser handles it */
+.app-main {
+  padding: 1.5rem 2rem 2.5rem;
+}
+
+.library,
+.workspace {
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
 /* ========= Header ========= */
@@ -56,6 +75,10 @@ body {
 
 .save-status {
   opacity: 0.8;
+}
+
+.save-status-dirty {
+  color: #f97316;
 }
 
 .subtitle {
@@ -143,18 +166,6 @@ body {
   color: #0f172a;
 }
 
-/* ========= Main layout ========= */
-
-.app-main {
-  padding: 1.5rem 2rem 2.5rem;
-}
-
-.library,
-.workspace {
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 /* ========= Settings panel ========= */
 
 .settings-panel {
@@ -182,6 +193,15 @@ body {
   margin: 0.25rem 0 0.6rem;
 }
 
+.debug-output {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  background: #020617;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  overflow-x: auto;
+}
+
 /* ========= Library view ========= */
 
 .new-project,
@@ -196,6 +216,12 @@ body {
 .new-project h2,
 .project-list h2 {
   margin-top: 0;
+}
+
+.project-list ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.5rem 0 0;
 }
 
 .project-card {
@@ -231,7 +257,7 @@ body {
   }
 }
 
-/* ========= Workflow steps (left dark panel) ========= */
+/* ========= Workflow steps ========= */
 
 .workflow-steps {
   background: radial-gradient(circle at top left, #1e293b 0%, #020617 70%);
@@ -290,10 +316,28 @@ body {
   font-size: 0.9rem;
 }
 
+.upload-row.drop-enabled {
+  border: 2px dashed #888;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background: #f3f4f6;
+}
+
 .upload-hint {
   margin: 0;
   font-size: 0.8rem;
   color: #6b7280;
+}
+
+.import-status {
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.error {
+  color: #b00020;
+  font-size: 0.9rem;
 }
 
 .format-options {
@@ -324,22 +368,7 @@ body {
   gap: 0.5rem;
   margin-top: 0.85rem;
 }
-.upload-row.drop-enabled {
-  border: 2px dashed #888;
-  border-radius: 6px;
-  padding: 0.75rem;
-  margin-bottom: 1rem;
-}
 
-.import-status {
-  font-size: 0.9rem;
-  font-style: italic;
-}
-
-.error {
-  color: #b00020;
-  font-size: 0.9rem;
-}
 /* ========= Rewrite helpers ========= */
 
 .rewrite-status {
@@ -497,7 +526,7 @@ body {
   min-height: 140px;
 }
 
-/* ========= Chat column ========= */
+/* ========= Chat column (Workspace) ========= */
 
 .chat-section {
   background: #f9fafb;
@@ -606,6 +635,167 @@ body {
   margin-bottom: 0.4rem;
 }
 
+/* ========= View toggle (Workspace / Assistant) ========= */
+
+.view-toggle {
+  display: flex;
+  gap: 0.25rem;
+  margin-right: 0.75rem;
+}
+
+.view-tab {
+  border: 1px solid #cbd5e1;
+  background: #e5e7eb;
+  color: #1f2937;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.9;
+}
+
+.view-tab-active {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.view-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ========= Console tabs ========= */
+
+.console-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.console-tab {
+  background: #e5e7eb;
+  color: #1f2937;
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.console-tab-active {
+  background: #6366f1;
+  color: #ffffff;
+  border-color: #4f46e5;
+}
+
+.console-pane {
+  margin-top: 0.5rem;
+}
+
+.console-hint {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-bottom: 0.5rem;
+}
+
+/* ========= Assistant full-page layout ========= */
+
+/* Softer, brighter background for assistant view */
+.assistant-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #f7f7fa 0%, #ececf4 100%);
+  border-radius: 1rem;
+  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.5);
+  color: #1f2937;
+}
+
+.assistant-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #1e293b;
+}
+
+.assistant-subtitle {
+  margin-top: 0.25rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.assistant-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr);
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+/* Card-style layout panels */
+.chat-section.chat-section-full,
+.assistant-sidebar {
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 0.75rem;
+  color: #1f2937;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.assistant-sidebar {
+  padding: 0.75rem 1rem;
+}
+
+/* Larger chat scrolling area */
+.chat-log-large {
+  max-height: 450px;
+  overflow-y: auto;
+}
+
+/* Subtle animation for console pane */
+@keyframes consoleFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.console-pane-animated {
+  animation: consoleFadeIn 0.25s ease-out;
+}
+
+/* High-contrast bubbles in assistant view only */
+.assistant-page .chat-msg {
+  border-radius: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.assistant-page .chat-msg.user {
+  background: #e0f2fe;
+  border-left: 4px solid #38bdf8;
+  color: #0f172a;
+}
+
+.assistant-page .chat-msg.assistant {
+  background: #f0fdf4;
+  border-left: 4px solid #4ade80;
+  color: #1f2937;
+}
+
+/* Bright textareas in consoles / assistant */
+.console-pane textarea,
+.chat-input-row textarea,
+.outline-textarea,
+.marketing-textarea {
+  background: #fafafa;
+  color: #111827;
+  border: 1px solid #cbd5e1;
+}
+
 /* ========= Small screens tweaks ========= */
 
 @media (max-width: 768px) {
@@ -634,5 +824,9 @@ body {
   .research-buttons-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .assistant-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
