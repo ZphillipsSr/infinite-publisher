@@ -29,6 +29,8 @@ type RunOptions = {
   maxTokens?: number;
 };
 
+// Backwards-compat alias for older code that imports AIOptions
+export type AIOptions = RunOptions;
 // ---------------------------------------------------------------------------
 // Environment / configuration
 // ---------------------------------------------------------------------------

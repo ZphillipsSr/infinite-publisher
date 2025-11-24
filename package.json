@@ -13,6 +13,7 @@
     "build:server": "npm --prefix server run build",
     "build:client": "npm --prefix client run build",
     "build": "npm run build:server && npm run build:client && electron-builder",
+    "dist": "npm run build",
     "release": "standard-version"
   },
   "devDependencies": {
@@ -28,11 +29,18 @@
     "productName": "Infinite Publisher",
     "asar": false,
     "files": [
-      "electron/**",
-      "client/dist/**",
-      "server/dist/**",
-      "!**/*.map"
-    ],
+  "electron/**",
+  "client/dist/**",
+  {
+    "from": "server/dist",
+    "to": "server/dist"
+  },
+  {
+    "from": "server/node_modules",
+    "to": "server/node_modules"
+  },
+  "!**/*.map"
+],
     "directories": {
       "output": "dist_electron"
     },

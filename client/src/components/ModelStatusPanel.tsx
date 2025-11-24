@@ -3,7 +3,7 @@
 // Simple status card for AI backend + keys.
 // Matches /api/ai/models/status response shape from aiRoutes.ts.
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 type ModelStatusResponse = {
   ok: boolean;

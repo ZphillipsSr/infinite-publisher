@@ -1838,24 +1838,34 @@ return (
                     </label>
                   </div>
 
-                  {/* BACK COVER */}
-                  <div className="marketing-section">
-                    <h3>Back-cover Description</h3>
-                    <button
-                      onClick={handleGenerateBackCover}
-                      disabled={backCoverLoading}
-                    >
-                      {backCoverLoading ? "Generating…" : "Generate Blurb"}
-                    </button>
+                 {/* BACK COVER */}
+<div className="marketing-section">
+  <h3>Back-cover Description</h3>
 
-                    <textarea
-                      className="marketing-textarea"
-                      value={backCoverBlurb}
-                      onChange={(e) => setBackCoverBlurb(e.target.value)}
-                      rows={6}
-                      placeholder="Back-cover description..."
-                    />
-                  </div>
+  <button
+    onClick={handleGenerateBackCover}
+    disabled={backCoverLoading}
+  >
+    {backCoverLoading ? "Generating…" : "Generate Blurb"}
+  </button>
+
+  <button
+    type="button"
+    onClick={handleDownloadKdpSheet}
+    disabled={!selectedProject}
+    style={{ marginLeft: "0.75rem" }}
+  >
+    Download KDP Sheet (.txt)
+  </button>
+
+  <textarea
+    className="marketing-textarea"
+    value={backCoverBlurb}
+    onChange={(e) => setBackCoverBlurb(e.target.value)}
+    rows={6}
+    placeholder="Back-cover description..."
+  />
+</div>
                 </section>
               </div>
             )}
