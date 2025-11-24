@@ -1,213 +1,323 @@
-import { Express, Request, Response } from "express";
-import { callOpenRouterChat, getModelRuntimeStatus } from "../services/aiService";
-import { OPENROUTER_KEY } from "../config";
+// src/routes/aiRoutes.ts
+//
+// Unified AI routes for Infinite Publisher.
+// - Uses runAIUnified() from services/aiEngine
+// - OpenRouter + free models only (per aiEngine.ts config)
+// - Outline / back-cover use a TRUNCATED manuscript to avoid context-limit errors
+// - Exposes /api/ai/models/status for ModelStatusPanel
 
-type StyleProfile = {
-  tone?: string;
-  audience?: string;
-  genre?: string;
-  pov?: string;
-  tense?: string;
-  pacing?: string;
-  formality?: string;
-  notes?: string;
-};
+import express from "express";
+import { runAIUnified as runAI, ChatMessage } from "../services/aiEngine";
 
-export function registerAIRoutes(app: Express) {
-  // Simple check: AI enabled?
-  const aiEnabled = !!OPENROUTER_KEY;
+const router = express.Router();
 
-  // --------- General Chat ---------
-  app.post("/api/ai/chat", async (req: Request, res: Response) => {
-    const { message } = req.body as { message?: string };
+/* ---------------------------------------------------------------------------
+   Local AI env flags (mirrors aiEngine.ts so ModelStatusPanel can show status)
+--------------------------------------------------------------------------- */
 
-    if (!aiEnabled) {
-      return res.json({
-        reply:
-          '[Local stub] Set OPENROUTER_API_KEY and model env vars to enable real AI responses.'
-      });
+const AI_PROVIDER = process.env.AI_PROVIDER || "openrouter";
+const AI_FREE_ONLY =
+  (process.env.AI_FREE_ONLY || "true").toLowerCase() === "true";
+
+const HAS_OPENROUTER_KEY = !!process.env.OPENROUTER_API_KEY;
+const HAS_OPENAI_KEY = !!process.env.OPENAI_API_KEY;
+
+// Keep these in sync with aiEngine.ts
+const OPENROUTER_FREE_MODELS: string[] = [
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "google/gemini-1.5-flash-8b:free",
+  "mistralai/mistral-7b-instruct:free"
+];
+
+const OPENROUTER_PAID_MODELS: string[] = [
+  // "openai/gpt-4o-mini", // intentionally disabled while AI_FREE_ONLY=true
+];
+
+const OPENAI_MODELS: string[] = ["gpt-4o-mini", "gpt-4.1-mini"];
+
+/* ---------------------------------------------------------------------------
+   Helpers
+--------------------------------------------------------------------------- */
+
+function normalizeMessages(raw: any[]): ChatMessage[] {
+  return raw.map((m) => {
+    if (!m.role || !m.content) {
+      throw new Error("Invalid message format.");
     }
-
-    try {
-      const reply = await callOpenRouterChat(
-        [
-          {
-            role: "system",
-            content:
-              "You are a helpful writing and publishing assistant. Help the user with editing, structure, and KDP-related questions."
-          },
-          {
-            role: "user",
-            content: message || ""
-          }
-        ],
-        0.7
-      );
-
-      res.json({ reply });
-    } catch (err: any) {
-      console.error("OpenRouter chat error:", err?.message || err);
-      res.status(500).json({
-        reply: "Error contacting OpenRouter API (chat)."
-      });
-    }
-  });
-
-  // --------- Context Chat (with manuscript) ---------
-  app.post("/api/ai/context", async (req: Request, res: Response) => {
-    const { message, manuscript, styleProfile } = req.body as {
-      message?: string;
-      manuscript?: string;
-      styleProfile?: StyleProfile;
+    return {
+      role: m.role,
+      content: m.content
     };
-
-    if (!aiEnabled) {
-      return res.json({
-        reply:
-          '[Local stub] Context mode requires OPENROUTER_API_KEY and models in .env.'
-      });
-    }
-
-    try {
-      let styleSummary = "";
-      if (styleProfile) {
-        const parts: string[] = [];
-        if (styleProfile.tone) parts.push(`Tone: ${styleProfile.tone}`);
-        if (styleProfile.audience) parts.push(`Audience: ${styleProfile.audience}`);
-        if (styleProfile.genre) parts.push(`Genre: ${styleProfile.genre}`);
-        if (styleProfile.pov) parts.push(`POV: ${styleProfile.pov}`);
-        if (styleProfile.tense) parts.push(`Tense: ${styleProfile.tense}`);
-        if (styleProfile.pacing) parts.push(`Pacing: ${styleProfile.pacing}`);
-        if (styleProfile.formality)
-          parts.push(`Formality: ${styleProfile.formality}`);
-        if (styleProfile.notes)
-          parts.push(`Extra notes: ${styleProfile.notes}`);
-        if (parts.length > 0) {
-          styleSummary =
-            "Author style profile:\n" + parts.map((p) => `- ${p}`).join("\n");
-        }
-      }
-
-      const prompt = `
-You are an expert writing, editing, and publishing assistant.
-You analyze manuscripts deeply and provide clear, actionable improvements.
-
-The user asked:
-"${message}"
-
-${styleSummary ? styleSummary + "\n" : ""}Below is the manuscript text. Use it as needed to answer.
-If you reference the text, be specific, but keep answers concise.
-
---- MANUSCRIPT BEGIN ---
-${(manuscript || "").slice(0, 100000)}
---- MANUSCRIPT END ---
-`;
-
-      const reply = await callOpenRouterChat(
-        [
-          {
-            role: "system",
-            content:
-              "You are a precise manuscript editing and publishing assistant. Honor the author's stated style profile whenever it is provided."
-          },
-          { role: "user", content: prompt }
-        ],
-        0.4
-      );
-
-      res.json({ reply });
-    } catch (err: any) {
-      console.error("Context AI error:", err?.message || err);
-      res.status(500).json({ reply: "OpenRouter context mode error." });
-    }
-  });
-
-  // --------- Rewrite Selection ---------
-  app.post("/api/ai/rewrite", async (req: Request, res: Response) => {
-    const { instruction, selectedText, manuscript, styleProfile } = req.body as {
-      instruction?: string;
-      selectedText?: string;
-      manuscript?: string;
-      styleProfile?: StyleProfile;
-    };
-
-    if (!aiEnabled) {
-      return res.json({
-        rewritten:
-          '[Local stub] Set OPENROUTER_API_KEY and models in .env for real rewrite behavior.'
-      });
-    }
-
-    if (!selectedText || !selectedText.trim()) {
-      return res.status(400).json({ error: "selectedText is required." });
-    }
-
-    try {
-      let styleSummary = "";
-      if (styleProfile) {
-        const parts: string[] = [];
-        if (styleProfile.tone) parts.push(`Tone: ${styleProfile.tone}`);
-        if (styleProfile.audience) parts.push(`Audience: ${styleProfile.audience}`);
-        if (styleProfile.genre) parts.push(`Genre: ${styleProfile.genre}`);
-        if (styleProfile.pov) parts.push(`POV: ${styleProfile.pov}`);
-        if (styleProfile.tense) parts.push(`Tense: ${styleProfile.tense}`);
-        if (styleProfile.pacing) parts.push(`Pacing: ${styleProfile.pacing}`);
-        if (styleProfile.formality)
-          parts.push(`Formality: ${styleProfile.formality}`);
-        if (styleProfile.notes)
-          parts.push(`Extra notes: ${styleProfile.notes}`);
-        if (parts.length > 0) {
-          styleSummary =
-            "Author style profile:\n" + parts.map((p) => `- ${p}`).join("\n");
-        }
-      }
-
-      const prompt = `
-You are an expert line editor.
-
-Task: Rewrite ONLY the given selected text according to the instruction.
-- Preserve the author's core meaning and style as much as possible.
-- Do NOT add surrounding context that wasn't in the selection.
-- Output ONLY the rewritten text, with no extra commentary.
-
-Instruction:
-"${instruction}"
-
-${styleSummary ? styleSummary + "\n" : ""}Selected text:
-"${selectedText}"
-
-(For additional context, here is some of the manuscript, but do not rewrite it directly. Use it only to infer tone and style.)
-
---- MANUSCRIPT CONTEXT BEGIN ---
-${(manuscript || "").slice(0, 8000)}
---- MANUSCRIPT CONTEXT END ---
-`;
-
-      const rewritten = await callOpenRouterChat(
-        [
-          {
-            role: "system",
-            content:
-              "You are a precise line editor that only returns the rewritten text and respects the author's style profile."
-          },
-          { role: "user", content: prompt }
-        ],
-        0.5
-      );
-
-      res.json({ rewritten });
-    } catch (err: any) {
-      console.error("Rewrite AI error:", err?.message || err);
-      res.status(500).json({ error: "Server error in rewrite route." });
-    }
-  });
-
-  // --------- AI Model Status (for dashboard) ---------
-  app.get("/api/ai/models/status", (req: Request, res: Response) => {
-    const status = getModelRuntimeStatus();
-    res.json({
-      aiEnabled,
-      ...status
-    });
   });
 }
+
+// Hard cap so huge manuscripts don’t blow the context window
+const MAX_MANUSCRIPT_CHARS = 30_000;
+
+/* ---------------------------------------------------------------------------
+   POST /api/ai/chat
+   Main AI entry point for chat panel + book co-author console
+--------------------------------------------------------------------------- */
+router.post("/chat", async (req, res) => {
+  try {
+    const { messages, temperature, maxTokens, purpose } = req.body;
+
+    const userOpenAIKey =
+      req.headers["x-user-openai-key"] &&
+      String(req.headers["x-user-openai-key"]).trim();
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing or invalid 'messages' array."
+      });
+    }
+
+    const normalized = normalizeMessages(messages);
+
+    const reply = await runAI(
+      normalized,
+      {
+        purpose,
+        temperature,
+        maxTokens
+      },
+      userOpenAIKey
+    );
+
+    return res.json({
+      ok: true,
+      reply
+    });
+  } catch (err) {
+    console.error("AI /chat error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "AI request failed"
+    });
+  }
+});
+
+/* ---------------------------------------------------------------------------
+   POST /api/ai/rewrite
+   Rewrite a selected span of text with given instructions
+--------------------------------------------------------------------------- */
+router.post("/rewrite", async (req, res) => {
+  try {
+    const { text, instructions } = req.body;
+
+    if (!text || typeof text !== "string" || !text.trim()) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing 'text' to rewrite."
+      });
+    }
+
+    const safeInstructions =
+      typeof instructions === "string" && instructions.trim().length > 0
+        ? instructions.trim()
+        : "Rewrite this text clearly and concisely while preserving meaning and tone.";
+
+    const userKey =
+      req.headers["x-user-openai-key"] &&
+      String(req.headers["x-user-openai-key"]).trim();
+
+    const msg: ChatMessage[] = [
+      {
+        role: "system",
+        content:
+          "You rewrite text clearly, concisely, and stylistically aligned with instructions."
+      },
+      {
+        role: "user",
+        content: `Instructions:\n${safeInstructions}\n\nText to rewrite:\n${text}`
+      }
+    ];
+
+    const rewritten = await runAI(
+      msg,
+      { purpose: "rewrite", temperature: 0.4, maxTokens: 600 },
+      userKey
+    );
+
+    return res.json({ ok: true, rewritten });
+  } catch (err) {
+    console.error("AI /rewrite error:", err);
+    return res.status(500).json({ ok: false, error: "Rewrite failed" });
+  }
+});
+
+/* ---------------------------------------------------------------------------
+   POST /api/ai/analyze-manuscript
+   Shared endpoint for:
+   - Outline generation
+   - Back-cover generation
+   (frontend passes an `instructions` string saying what to do)
+--------------------------------------------------------------------------- */
+router.post("/analyze-manuscript", async (req, res) => {
+  try {
+    const { manuscript, instructions } = req.body;
+
+    if (!manuscript || typeof manuscript !== "string") {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing 'manuscript' in request body."
+      });
+    }
+
+    const trimmed = manuscript.trim();
+    if (!trimmed) {
+      return res.status(400).json({
+        ok: false,
+        error: "Manuscript is empty."
+      });
+    }
+
+    const userKey =
+      req.headers["x-user-openai-key"] &&
+      String(req.headers["x-user-openai-key"]).trim();
+
+    // 🧠 Context guard: use only the first N characters
+    const excerpt =
+      trimmed.length > MAX_MANUSCRIPT_CHARS
+        ? trimmed.slice(0, MAX_MANUSCRIPT_CHARS)
+        : trimmed;
+
+    const safeInstructions =
+      typeof instructions === "string" && instructions.trim().length > 0
+        ? instructions.trim()
+        : "Analyze this manuscript excerpt and give structured feedback.";
+
+    const msg: ChatMessage[] = [
+      {
+        role: "system",
+        content:
+          "You are a manuscript analysis assistant for the Infinite Publisher app. " +
+          "You may receive only an excerpt of the full book due to context limits. " +
+          "Follow the user's instructions precisely, and if needed, note that your " +
+          "analysis is based on a partial view."
+      },
+      {
+        role: "user",
+        content:
+          `Instructions:\n${safeInstructions}\n\n` +
+          `Manuscript excerpt (may be truncated):\n${excerpt}`
+      }
+    ];
+
+    const reply = await runAI(
+      msg,
+      { purpose: "manuscript_context", temperature: 0.4, maxTokens: 800 },
+      userKey
+    );
+
+    return res.json({ ok: true, reply });
+  } catch (err) {
+    console.error("Manuscript analyze error:", err);
+    return res.status(500).json({ ok: false, error: "Analysis failed" });
+  }
+});
+
+/* ---------------------------------------------------------------------------
+   POST /api/ai/dev-console
+   Dev / coding console assistant (no manuscript context by default)
+--------------------------------------------------------------------------- */
+router.post("/dev-console", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+
+    if (!prompt || typeof prompt !== "string") {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing 'prompt' for dev console."
+      });
+    }
+
+    const userKey =
+      req.headers["x-user-openai-key"] &&
+      String(req.headers["x-user-openai-key"]).trim();
+
+    const msg: ChatMessage[] = [
+      { role: "system", content: "You are a helpful code assistant." },
+      { role: "user", content: prompt }
+    ];
+
+    const reply = await runAI(
+      msg,
+      { purpose: "dev_console", temperature: 0.2, maxTokens: 600 },
+      userKey
+    );
+
+    return res.json({ ok: true, reply });
+  } catch (err) {
+    console.error("Dev console AI error:", err);
+    return res.status(500).json({ ok: false, error: "Developer console failed" });
+  }
+});
+
+/* ---------------------------------------------------------------------------
+   GET /api/ai/context
+   Simple placeholder so any legacy calls don’t 404.
+--------------------------------------------------------------------------- */
+router.get("/context", async (req, res) => {
+  try {
+    return res.json({
+      ok: true,
+      context: "",
+      message: "No manuscript context stored yet."
+    });
+  } catch (err: any) {
+    console.error("AI context error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to load AI context"
+    });
+  }
+});
+
+/* ---------------------------------------------------------------------------
+   GET /api/ai/models/status
+   Used by ModelStatusPanel to show provider + model info
+--------------------------------------------------------------------------- */
+router.get("/models/status", (req, res) => {
+  try {
+    const freeModels =
+      AI_PROVIDER === "openrouter" ? OPENROUTER_FREE_MODELS : [];
+    const paidModels =
+      AI_PROVIDER === "openrouter" && !AI_FREE_ONLY
+        ? OPENROUTER_PAID_MODELS
+        : [];
+    const openaiModels =
+      AI_PROVIDER === "openai" ? OPENAI_MODELS : [];
+
+    const activeModels =
+      freeModels.length > 0
+        ? freeModels
+        : openaiModels.length > 0
+        ? openaiModels
+        : [];
+
+    return res.json({
+      ok: true,
+      provider: AI_PROVIDER,
+      freeOnly: AI_FREE_ONLY,
+      activeModels,
+      freeModels,
+      paidModels,
+      openaiModels,
+      allModels: [...freeModels, ...paidModels, ...openaiModels],
+      env: {
+        hasOpenRouterKey: HAS_OPENROUTER_KEY,
+        hasOpenAIKey: HAS_OPENAI_KEY
+      }
+    });
+  } catch (err) {
+    console.error("Model status error:", err);
+    return res.status(500).json({
+      ok: false,
+      error: "Failed to load model status"
+    });
+  }
+});
+
+export default router;

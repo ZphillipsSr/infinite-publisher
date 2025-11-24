@@ -1,9 +1,11 @@
+// electron/main.js
 const { app, BrowserWindow } = require("electron");
 const path = require("path");
 
-const isDev = process.env.NODE_ENV === "development";
-
 let mainWindow;
+
+// More reliable than NODE_ENV for Electron
+const isDev = !app.isPackaged;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -21,10 +23,9 @@ function createWindow() {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, load the built React app
-    mainWindow.loadFile(
-      path.join(__dirname, "../client/dist/index.html")
-    );
+    // In production, load the built React app from client/dist
+    const indexPath = path.join(__dirname, "..", "client", "dist", "index.html");
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.on("closed", () => {

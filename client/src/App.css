@@ -21,16 +21,21 @@ body {
   color: #0f172a;
 }
 
-/* Root container – simple layout so page can scroll normally */
+/* Root container – flex layout so app-main can scroll */
 .app-root {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%);
   color: #0f172a;
 }
 
-/* Main content area – no internal scroll; browser handles it */
+/* Main content area – scrolls inside the app */
 .app-main {
+  flex: 1;
   padding: 1.5rem 2rem 2.5rem;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .library,
@@ -700,7 +705,6 @@ body {
 
 /* ========= Assistant full-page layout ========= */
 
-/* Softer, brighter background for assistant view */
 .assistant-page {
   display: flex;
   flex-direction: column;

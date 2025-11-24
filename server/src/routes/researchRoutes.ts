@@ -12,21 +12,30 @@ export function registerResearchRoutes(app: Express) {
   app.post("/api/research/search", async (req: Request, res: Response) => {
     const { query } = req.body as {
       query?: string;
-      provider?: string;
     };
+
+    // User-provided API key (optional)
+    const userOpenAIKey = (req.headers["x-user-openai-key"] as
+      | string
+      | undefined)?.trim();
 
     if (!query || !query.trim()) {
       return res.status(400).json({ error: "query is required" });
     }
 
     try {
-      const { sources, provider } = await runWebSearch(query.trim());
+      const cleaned = query.trim();
 
-      // Use AI summary if available (inside summarizeSearchResults)
-      const summary = await summarizeSearchResults(query.trim(), sources);
+      const { sources, provider } = await runWebSearch(cleaned);
+
+      const summary = await summarizeSearchResults(
+        cleaned,
+        sources,
+        userOpenAIKey // <-- pass user key
+      );
 
       res.json({
-        query: query.trim(),
+        query: cleaned,
         provider,
         summary,
         sources
@@ -49,20 +58,28 @@ export function registerResearchRoutes(app: Express) {
     const { claim, context } = req.body as {
       claim?: string;
       context?: string;
-      provider?: string;
     };
+
+    // User OpenAI key support
+    const userOpenAIKey = (req.headers["x-user-openai-key"] as
+      | string
+      | undefined)?.trim();
 
     if (!claim || !claim.trim()) {
       return res.status(400).json({ error: "claim is required" });
     }
 
     try {
-      const result = await factCheckClaim(claim.trim(), context);
+      const cleaned = claim.trim();
 
-      // factCheckClaim already handles AI errors and rate limits,
-      // and always returns a structured result.
+      const result = await factCheckClaim(
+        cleaned,
+        context,
+        userOpenAIKey // <-- pass in user key
+      );
+
       res.json({
-        claim: claim.trim(),
+        claim: cleaned,
         ...result
       });
     } catch (err) {

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Infinite Publisher desktop app",
   "author": "Zachary Jaiamin Phillips Sr.",
-  "main": "electron-main.js",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "npm --prefix server run dev",
@@ -28,11 +28,10 @@
     "productName": "Infinite Publisher",
     "asar": false,
     "files": [
-      "electron-main.js",
-      "package.json",
+      "electron/**",
       "client/dist/**",
       "server/dist/**",
-      "server/.env"
+      "!**/*.map"
     ],
     "directories": {
       "output": "dist_electron"

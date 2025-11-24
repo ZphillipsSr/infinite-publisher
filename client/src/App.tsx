@@ -1,6 +1,15 @@
 import React, { useEffect, useState, useRef } from "react";
 import "./App.css";
 import ModelStatusPanel from "./components/ModelStatusPanel";
+import ResearchPanel from "./components/ResearchPanel";
+import {
+  loadUserPreferences,
+  saveUserPreferences,
+  defaultUserPreferences,
+  type UserPreferences,
+  loadUserOpenAIKey,
+  saveUserOpenAIKey
+} from "./preferences";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
@@ -45,7 +54,7 @@ type FormatResult = {
   lineSpacing: number;
 };
 
-type ConsoleTab = "book" | "dev";
+type ConsoleTab = "book" | "dev" | "research";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -53,13 +62,6 @@ type ChatMessage = {
 };
 
 function App() {
-  // Console state (for future GPT console view)
-  const [consoleMessages, setConsoleMessages] = useState<
-    { role: "user" | "assistant"; content: string }[]
-  >([]);
-  const [consoleInput, setConsoleInput] = useState("");
-  const [consoleBusy, setConsoleBusy] = useState(false);
-
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null
@@ -77,6 +79,9 @@ function App() {
   const [styleProfile, setStyleProfile] =
     useState<StyleProfile>(emptyStyleProfile);
   const [formatResult, setFormatResult] = useState<FormatResult | null>(null);
+
+  const [userPrefs, setUserPrefs] =
+    useState<UserPreferences>(defaultUserPreferences);
 
   const [trimSize, setTrimSize] = useState<"6x9" | "8.5x11">("6x9");
   const [lineSpacing, setLineSpacing] = useState<number>(1.15);
@@ -116,15 +121,12 @@ function App() {
   const [chapterOutline, setChapterOutline] = useState("");
   const [outlineLoading, setOutlineLoading] = useState(false);
 
-  const [researchQuery, setResearchQuery] = useState("");
-  const [factClaim, setFactClaim] = useState("");
-  const [researchResult, setResearchResult] = useState<any | null>(null);
-  const [researchLoading, setResearchLoading] = useState(false);
-  const [researchSuggestions, setResearchSuggestions] = useState<string[]>([]);
-
   const [manuscriptInsights, setManuscriptInsights] = useState<any | null>(
     null
   );
+
+  // User-provided OpenAI API key (optional, stored locally)
+  const [userOpenAiKey, setUserOpenAiKey] = useState<string>("");
 
   // Autosave + status
   const [lastLocalSave, setLastLocalSave] = useState<string | null>(null);
@@ -132,6 +134,9 @@ function App() {
   const [isDirty, setIsDirty] = useState<boolean>(false);
 
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Derived flag: do we have a personal key at all?
+  const hasUserKey = userOpenAiKey.trim().length > 0;
 
   // ---- Load projects on mount ----
   const loadProjects = async () => {
@@ -161,6 +166,23 @@ function App() {
 
   useEffect(() => {
     loadProjects();
+  }, []);
+
+  // ---- Load user preferences + OpenAI key from localStorage on mount ----
+  useEffect(() => {
+    try {
+      const prefs = loadUserPreferences();
+      setUserPrefs(prefs);
+      setTrimSize(prefs.defaultTrimSize);
+      setLineSpacing(prefs.defaultLineSpacing);
+
+      const storedKey = loadUserOpenAIKey();
+      if (storedKey) {
+        setUserOpenAiKey(storedKey);
+      }
+    } catch (e) {
+      console.error("Failed to load user preferences or OpenAI key:", e);
+    }
   }, []);
 
   // ---- Autosave to localStorage when manuscript or styleProfile changes ----
@@ -193,7 +215,8 @@ function App() {
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    return () =>
+      window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
   const selectedProject =
@@ -222,6 +245,48 @@ function App() {
     return "No saves yet";
   })();
 
+  // ---- Helper to build JSON headers with optional user key ----
+  const buildJsonHeaders = () => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json"
+    };
+    const trimmed = userOpenAiKey.trim();
+
+    // Only send the personal key if:
+    //  - it exists, AND
+    //  - the user has "Use my personal key" enabled
+    if (trimmed && userPrefs.usePersonalOpenAIKey) {
+      headers["X-User-OpenAI-Key"] = trimmed;
+    }
+    return headers;
+  };
+
+  // Guard: is AI allowed to run under current prefs / keys?
+  const ensureAIEnabled = (): boolean => {
+    // If we have a personal key and are allowed to use it, we're good.
+    if (hasUserKey && userPrefs.usePersonalOpenAIKey) return true;
+
+    // If we don't have / aren't using a key, but server AI is allowed,
+    // let the backend decide what to do with its own config.
+    if (userPrefs.allowServerAI) return true;
+
+    // Otherwise, block and explain.
+    alert(
+      "AI is currently disabled: you have no usable personal OpenAI key, " +
+        "and 'Allow server AI' is turned off in Settings."
+    );
+    return false;
+  };
+
+  const handleClearUserOpenAiKey = () => {
+    setUserOpenAiKey("");
+    try {
+      saveUserOpenAIKey(null);
+    } catch (e) {
+      console.error("Failed to clear user OpenAI key:", e);
+    }
+  };
+
   const handleSelectProject = (id: string) => {
     const proj = projects.find((p) => p.id === id);
 
@@ -231,8 +296,6 @@ function App() {
     setManuscriptInsights(null);
     setChatMessages([]);
     setBackCoverBlurb("");
-    setResearchResult(null);
-    setResearchSuggestions([]);
     setChapterOutline("");
 
     let loadedManuscript = "";
@@ -309,8 +372,6 @@ function App() {
       setManuscriptInsights(null);
       setChatMessages([]);
       setBackCoverBlurb("");
-      setResearchResult(null);
-      setResearchSuggestions([]);
       setChapterOutline("");
       setLastServerSave(null);
       setLastLocalSave(null);
@@ -690,23 +751,30 @@ function App() {
       return;
     }
 
+    if (!ensureAIEnabled()) return;
+
     setRewriteLoading(true);
 
     try {
       const res = await fetch(`${API_BASE}/api/ai/rewrite`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildJsonHeaders(),
         body: JSON.stringify({
-          instruction,
-          selectedText,
-          manuscript,
-          styleProfile
+          text: selectedText,
+          instructions: instruction
         })
       });
 
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Rewrite HTTP error:", res.status, text);
+        alert(`Rewrite failed: HTTP ${res.status}`);
+        return;
+      }
+
       const data = await res.json();
 
-      if (data.error) {
+      if (data.ok === false && data.error) {
         console.error("Rewrite error:", data.error);
         alert("Rewrite failed: " + data.error);
         return;
@@ -736,6 +804,7 @@ function App() {
 
   const handleSendChat = async () => {
     if (!chatInput.trim()) return;
+    if (!ensureAIEnabled()) return;
 
     const userMessage: ChatMessage = {
       role: "user",
@@ -747,21 +816,57 @@ function App() {
     setChatLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/ai/context`, {
+      const systemContext = `You are a book co-authoring assistant for the Infinite Publisher app.
+Work with the user's manuscript and style profile to give suggestions on structure, tone, pacing, and revisions.
+Style profile (JSON): ${JSON.stringify(styleProfile ?? {}, null, 2)}`;
+
+      const messagesForApi = [
+        {
+          role: "system",
+          content: systemContext
+        },
+        {
+          role: "user",
+          content:
+            `User request:\n${userMessage.content}\n\n` +
+            (manuscript.trim()
+              ? `Current manuscript:\n${manuscript}`
+              : "No manuscript text is currently loaded.")
+        }
+      ];
+
+      const res = await fetch(`${API_BASE}/api/ai/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildJsonHeaders(),
         body: JSON.stringify({
-          message: userMessage.content,
-          manuscript,
-          styleProfile
+          messages: messagesForApi,
+          temperature: 0.7,
+          maxTokens: 800,
+          purpose: "manuscript_context"
         })
       });
 
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Context chat HTTP error:", res.status, text);
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Error: AI request failed with HTTP ${res.status}.`
+          }
+        ]);
+        return;
+      }
+
       const data = await res.json();
+
+      const replyText: string =
+        data.reply || data.message || "(no reply from unified AI engine)";
 
       const reply: ChatMessage = {
         role: "assistant",
-        content: data.reply || "(no reply)"
+        content: replyText
       };
 
       setChatMessages((prev) => [...prev, reply]);
@@ -781,6 +886,7 @@ function App() {
 
   const handleSendDevChat = async () => {
     if (!devChatInput.trim()) return;
+    if (!ensureAIEnabled()) return;
 
     const userMessage: ChatMessage = {
       role: "user",
@@ -792,19 +898,35 @@ function App() {
     setDevChatLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/ai/chat`, {
+      const res = await fetch(`${API_BASE}/api/ai/dev-console`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildJsonHeaders(),
         body: JSON.stringify({
-          message: userMessage.content
+          prompt: userMessage.content
         })
       });
 
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Dev console HTTP error:", res.status, text);
+        setDevChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Error: dev console AI failed with HTTP ${res.status}.`
+          }
+        ]);
+        return;
+      }
+
       const data = await res.json();
+
+      const replyText: string =
+        data.reply || data.message || "(no reply from dev console AI)";
 
       const reply: ChatMessage = {
         role: "assistant",
-        content: data.reply || "(no reply)"
+        content: replyText
       };
 
       setDevChatMessages((prev) => [...prev, reply]);
@@ -828,26 +950,40 @@ function App() {
       return;
     }
 
+    if (!ensureAIEnabled()) return;
+
     setOutlineLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/ai/context`, {
+      const instructions =
+        "From this manuscript, generate a structured chapter-by-chapter outline. " +
+        "For each chapter or natural section, give: a short title, 2–4 sentence summary, and key themes. " +
+        "If the manuscript is not clearly divided into chapters, infer logical sections. " +
+        "Honor the author's style profile (tone, audience, genre, etc.) when wording the summaries.";
+
+      const res = await fetch(`${API_BASE}/api/ai/analyze-manuscript`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildJsonHeaders(),
         body: JSON.stringify({
-          message:
-            "From this manuscript, generate a structured chapter-by-chapter outline. " +
-            "For each chapter or natural section, give: a short title, 2–4 sentence summary, and key themes. " +
-            "If the manuscript is not clearly divided into chapters, infer logical sections. " +
-            "Honor the author’s style profile (tone, audience, genre, etc.) when wording the summaries.",
           manuscript,
-          styleProfile
+          instructions
         })
       });
 
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Outline generation HTTP error:", res.status, text);
+        alert(
+          `Outline failed: HTTP ${res.status}. Check /api/ai/analyze-manuscript on the server.`
+        );
+        return;
+      }
+
       const data = await res.json();
       const reply: string =
-        data.reply || "No outline could be generated from the manuscript.";
+        data.reply ||
+        data.message ||
+        "No outline could be generated from the manuscript.";
 
       setChapterOutline(reply);
     } catch (err) {
@@ -864,25 +1000,39 @@ function App() {
       return;
     }
 
+    if (!ensureAIEnabled()) return;
+
     setBackCoverLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/ai/context`, {
+      const instructions =
+        "Using this manuscript and the author's style profile, write a compelling 2–3 paragraph back-cover book description suitable for Amazon KDP. " +
+        "Focus on emotional resonance, clear stakes, and intrigue, without spoiling the entire arc. " +
+        "Write in third-person, present tense, and aim for 150–250 words.";
+
+      const res = await fetch(`${API_BASE}/api/ai/analyze-manuscript`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildJsonHeaders(),
         body: JSON.stringify({
-          message:
-            "Using this manuscript and the author's style profile, write a compelling 2–3 paragraph back-cover book description suitable for Amazon KDP. " +
-            "Focus on emotional resonance, clear stakes, and intrigue, without spoiling the entire arc. " +
-            "Write in third-person, present tense, and aim for 150–250 words.",
           manuscript,
-          styleProfile
+          instructions
         })
       });
 
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Back-cover HTTP error:", res.status, text);
+        alert(
+          `Back-cover generation failed: HTTP ${res.status}. Check /api/ai/analyze-manuscript on the server.`
+        );
+        return;
+      }
+
       const data = await res.json();
       const reply: string =
-        data.reply || "No back-cover description could be generated.";
+        data.reply ||
+        data.message ||
+        "No back-cover description could be generated.";
 
       setBackCoverBlurb(reply);
     } catch (err) {
@@ -890,143 +1040,6 @@ function App() {
       alert("Error contacting AI for back-cover description.");
     } finally {
       setBackCoverLoading(false);
-    }
-  };
-
-  const handleRunResearch = async () => {
-    if (!researchQuery.trim()) {
-      alert("Enter a search query.");
-      return;
-    }
-    setResearchLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/research/search`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: researchQuery.trim()
-        })
-      });
-      const data = await res.json();
-      setResearchResult({ mode: "search", data });
-    } catch (err) {
-      console.error("Research search failed", err);
-      setResearchResult({
-        mode: "error",
-        data: { message: "Research search failed." }
-      });
-    } finally {
-      setResearchLoading(false);
-    }
-  };
-
-  const handleSuggestResearchTopics = () => {
-    const text = manuscript;
-    if (!text.trim()) {
-      alert("Add some manuscript content first.");
-      return;
-    }
-
-    const rawWords = text
-      .split(/[^A-Za-z0-9]+/)
-      .map((w) => w.trim())
-      .filter((w) => w.length > 3);
-
-    if (rawWords.length === 0) {
-      alert("Not enough content to suggest topics.");
-      return;
-    }
-
-    const stopWords = new Set([
-      "this",
-      "that",
-      "with",
-      "from",
-      "have",
-      "will",
-      "they",
-      "them",
-      "then",
-      "there",
-      "here",
-      "into",
-      "about",
-      "your",
-      "their",
-      "been",
-      "what",
-      "when",
-      "where",
-      "which",
-      "would",
-      "could",
-      "should",
-      "because",
-      "while",
-      "chapter",
-      "section",
-      "intro",
-      "introduction",
-      "conclusion",
-      "the",
-      "and",
-      "for",
-      "are",
-      "was",
-      "were",
-      "you",
-      "him",
-      "her",
-      "his",
-      "she",
-      "who",
-      "why",
-      "how",
-      "these",
-      "those"
-    ]);
-
-    const freq: Record<string, number> = {};
-    for (const w of rawWords) {
-      const key = w.toLowerCase();
-      if (stopWords.has(key)) continue;
-      freq[key] = (freq[key] || 0) + 1;
-    }
-
-    const candidates = Object.entries(freq)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([word]) => word);
-
-    setResearchSuggestions(candidates);
-  };
-
-  const handleFactCheck = async () => {
-    const targetClaim = factClaim.trim();
-    if (!targetClaim) {
-      alert("Enter a claim to fact-check.");
-      return;
-    }
-    setResearchLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/research/fact-check`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          claim: targetClaim,
-          context: manuscript.slice(0, 2000)
-        })
-      });
-      const data = await res.json();
-      setResearchResult({ mode: "fact-check", data });
-    } catch (err) {
-      console.error("Fact-check failed", err);
-      setResearchResult({
-        mode: "error",
-        data: { message: "Fact-check failed." }
-      });
-    } finally {
-      setResearchLoading(false);
     }
   };
 
@@ -1148,8 +1161,6 @@ function App() {
     setManuscriptInsights(null);
     setChatMessages([]);
     setBackCoverBlurb("");
-    setResearchSuggestions([]);
-    setResearchResult(null);
     setChapterOutline("");
     setIsDirty(false);
     setActiveView("workspace");
@@ -1201,8 +1212,7 @@ function App() {
           2
         )
       : "";
-
-  return (
+return (
     <div className="app-root">
       <header className="app-header">
         <h1>Infinite Publisher – MVP</h1>
@@ -1268,7 +1278,7 @@ function App() {
       </header>
 
       <main className="app-main">
-        {/* SETTINGS PANEL (same for both views) */}
+        {/* SETTINGS PANEL */}
         {showSettings && (
           <section className="settings-panel">
             <h2>Settings</h2>
@@ -1276,10 +1286,8 @@ function App() {
             <div className="settings-group">
               <h3>Server &amp; AI Status</h3>
               <p className="settings-hint">
-                This checks the backend <code>/api/debug/env</code> endpoint and
-                shows whether AI and search integrations are wired correctly.
+                This checks the backend <code>/api/debug/env</code> endpoint.
               </p>
-
               <button
                 type="button"
                 onClick={handleCheckEnvDebug}
@@ -1287,19 +1295,99 @@ function App() {
               >
                 {envDebugLoading ? "Checking…" : "Check status"}
               </button>
-
               {envDebugError && <p className="error">{envDebugError}</p>}
-
               {envDebug && (
                 <pre className="debug-output">
                   {JSON.stringify(envDebug, null, 2)}
                 </pre>
               )}
             </div>
+
+            <div className="settings-group">
+              <h3>Your OpenAI API key</h3>
+              <p className="settings-hint">
+                Add your OpenAI API key if you want private usage.
+              </p>
+              <label>
+                OpenAI API key
+                <input
+                  type="password"
+                  value={userOpenAiKey}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setUserOpenAiKey(value);
+                    try {
+                      if (value.trim()) saveUserOpenAIKey(value);
+                      else saveUserOpenAIKey(null);
+                    } catch (err) {
+                      console.error("Failed to save custom key:", err);
+                    }
+                  }}
+                  placeholder="sk-..."
+                />
+              </label>
+
+              <div className="settings-inline-actions">
+                <button
+                  type="button"
+                  onClick={handleClearUserOpenAiKey}
+                  disabled={!hasUserKey}
+                >
+                  Clear key
+                </button>
+                <span
+                  className={
+                    hasUserKey
+                      ? "settings-status-ok"
+                      : "settings-status-warn"
+                  }
+                >
+                  {hasUserKey
+                    ? "Custom key stored locally."
+                    : "No custom key stored."}
+                </span>
+              </div>
+
+              <div className="settings-group-small">
+                <label className="settings-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={userPrefs.usePersonalOpenAIKey}
+                    onChange={(e) => {
+                      const next = {
+                        ...userPrefs,
+                        usePersonalOpenAIKey: e.target.checked
+                      };
+                      setUserPrefs(next);
+                      saveUserPreferences(next);
+                    }}
+                  />
+                  <span>
+                    Use my personal OpenAI key for AI calls from this browser
+                  </span>
+                </label>
+
+                <label className="settings-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={userPrefs.allowServerAI}
+                    onChange={(e) => {
+                      const next = {
+                        ...userPrefs,
+                        allowServerAI: e.target.checked
+                      };
+                      setUserPrefs(next);
+                      saveUserPreferences(next);
+                    }}
+                  />
+                  <span>Allow server-side AI when no key is used</span>
+                </label>
+              </div>
+            </div>
           </section>
         )}
 
-        {/* ---------- WORKSPACE VIEW (manuscript, formatting, etc.) ---------- */}
+        {/* WORKSPACE VIEW */}
         {activeView === "workspace" && (
           <>
             {!selectedProject && (
@@ -1317,7 +1405,7 @@ function App() {
                 <section className="project-list">
                   <h2>Your Projects</h2>
 
-                  {projectsLoading && <p>Loading projects…</p>}
+                  {projectsLoading && <p>Loading…</p>}
 
                   {projectsError && (
                     <div className="error">
@@ -1328,9 +1416,7 @@ function App() {
 
                   {!projectsLoading &&
                     !projectsError &&
-                    projects.length === 0 && (
-                      <p>No projects yet. Create one above.</p>
-                    )}
+                    projects.length === 0 && <p>No projects yet.</p>}
 
                   <ul>
                     {projects.map((p) => (
@@ -1353,44 +1439,25 @@ function App() {
 
             {selectedProject && (
               <div className="workspace">
-                {/* ---------- Next Steps Strip (Guided Flow) ---------- */}
                 <section className="workflow-steps">
-                  <h2>Next steps for this book</h2>
+                  <h2>Next steps</h2>
                   <ol>
                     <li>
-                      <strong>Step 1 – Load your manuscript</strong>
-                      <span>
-                        {" "}
-                        • Paste or upload, then click “Save Manuscript”.
-                      </span>
+                      <strong>Step 1 – Load manuscript</strong>
                     </li>
                     <li>
-                      <strong>Step 2 – Format &amp; print specs</strong>
-                      <span>
-                        {" "}
-                        • Click “Format (Stats Only)”, then “Calculate Print
-                        Specs”.
-                      </span>
+                      <strong>Step 2 – Format &amp; Specs</strong>
                     </li>
                     <li>
-                      <strong>Step 3 – AI helpers</strong>
-                      <span>
-                        {" "}
-                        • Use “Generate Outline” and “Generate Back-cover
-                        Blurb”.
-                      </span>
+                      <strong>Step 3 – AI Assist</strong>
                     </li>
                     <li>
-                      <strong>Step 4 – Export for KDP</strong>
-                      <span>
-                        {" "}
-                        • Download “Interior (.docx)” and “KDP Sheet (.txt)”.
-                      </span>
+                      <strong>Step 4 – Export KDP</strong>
                     </li>
                   </ol>
                 </section>
 
-                {/* ---------- Manuscript Editor & Tools ---------- */}
+                {/* MANUSCRIPT EDITOR */}
                 <section className="editor-section">
                   <h2>Manuscript Editor</h2>
 
@@ -1400,65 +1467,67 @@ function App() {
                     onDrop={handleDropOnEditor}
                   >
                     <label>
-                      Upload or drop manuscript file:
+                      Upload manuscript file:
                       <input
                         type="file"
                         accept=".txt,.md,.doc,.docx,.pdf,.epub"
                         onChange={handleFileUpload}
                       />
                     </label>
-                    <p className="upload-hint">
-                      • Click to choose a file, or drag &amp; drop it anywhere
-                      in this box. Supported types: .txt, .md, .doc, .docx,
-                      .pdf, .epub.
-                      <br />
-                      • The imported text will replace the current manuscript in
-                      the editor. Remember to click &quot;Save Manuscript&quot;
-                      after reviewing.
-                    </p>
 
-                    {importLoading && (
-                      <p className="import-status">
-                        Importing file and extracting text…
-                      </p>
-                    )}
+                    {importLoading && <p>Importing…</p>}
                     {importError && <p className="error">{importError}</p>}
                   </div>
 
+                  {/* Format Options */}
                   <div className="format-options">
-                    <div>
-                      <label>
-                        Trim size:
-                        <select
-                          value={trimSize}
-                          onChange={(e) =>
-                            setTrimSize(e.target.value as "6x9" | "8.5x11")
-                          }
-                        >
-                          <option value="6x9">
-                            6&quot; x 9&quot; (paperback standard)
-                          </option>
-                          <option value="8.5x11">
-                            8.5&quot; x 11&quot; (workbook / large)
-                          </option>
-                        </select>
-                      </label>
-                    </div>
-                    <div>
-                      <label>
-                        Line spacing:
-                        <select
-                          value={lineSpacing}
-                          onChange={(e) =>
-                            setLineSpacing(parseFloat(e.target.value))
-                          }
-                        >
-                          <option value={1}>1.0</option>
-                          <option value={1.15}>1.15</option>
-                          <option value={1.5}>1.5</option>
-                        </select>
-                      </label>
-                    </div>
+                    <label>
+                      Trim size:
+                      <select
+                        value={trimSize}
+                        onChange={(e) => {
+                          const value = e.target
+                            .value as "6x9" | "8.5x11";
+                          setTrimSize(value);
+                          setUserPrefs((prev) => {
+                            const next = {
+                              ...prev,
+                              defaultTrimSize: value
+                            };
+                            saveUserPreferences(next);
+                            return next;
+                          });
+                        }}
+                      >
+                        <option value="6x9">6x9</option>
+                        <option value="8.5x11">8.5x11</option>
+                      </select>
+                    </label>
+
+                    <label>
+                      Line spacing:
+                      <select
+                        value={lineSpacing}
+                        onChange={(e) => {
+                          const newSpacing = parseFloat(
+                            e.target.value
+                          ) as 1 | 1.15 | 1.5;
+                          setLineSpacing(newSpacing);
+                          setUserPrefs((prev) => {
+                            const next: UserPreferences = {
+                              ...prev,
+                              defaultLineSpacing: newSpacing
+                            };
+                            saveUserPreferences(next);
+                            return next;
+                          });
+                        }}
+                      >
+                        <option value={1}>1.0</option>
+                        <option value={1.15}>1.15</option>
+                        <option value={1.5}>1.5</option>
+                      </select>
+                    </label>
                   </div>
 
                   <textarea
@@ -1478,27 +1547,25 @@ function App() {
                     </button>
                     <button onClick={handleFormat}>Format (Stats Only)</button>
                     <button onClick={handleDownloadManuscript}>
-                      Download Manuscript (.txt)
+                      Download (.txt)
                     </button>
                     <button onClick={handleDownloadDocx}>
                       Download Interior (.docx)
                     </button>
                   </div>
 
+                  {/* REWRITE BUTTONS */}
                   {rewriteLoading && (
-                    <p className="rewrite-status">Rewriting selection…</p>
+                    <p className="rewrite-status">Rewriting…</p>
                   )}
 
                   <div className="rewrite-actions">
-                    <p className="rewrite-label">
-                      AI rewrite selected text:
-                    </p>
+                    <p className="rewrite-label">AI rewrite selected text:</p>
                     <div className="rewrite-buttons">
                       <button
-                        type="button"
                         onClick={() =>
                           handleRewriteSelection(
-                            "Rewrite this to be clearer and more concise, while preserving the author's tone."
+                            "Rewrite this to be clearer and more concise."
                           )
                         }
                         disabled={rewriteLoading}
@@ -1506,10 +1573,9 @@ function App() {
                         Clearer
                       </button>
                       <button
-                        type="button"
                         onClick={() =>
                           handleRewriteSelection(
-                            "Rewrite this to be shorter and more compact, keeping the same meaning."
+                            "Rewrite this to be shorter while keeping the meaning."
                           )
                         }
                         disabled={rewriteLoading}
@@ -1517,10 +1583,9 @@ function App() {
                         Shorter
                       </button>
                       <button
-                        type="button"
                         onClick={() =>
                           handleRewriteSelection(
-                            "Rewrite this to feel more vivid and emotionally resonant, without becoming purple prose."
+                            "Rewrite this to be more vivid and emotionally resonant."
                           )
                         }
                         disabled={rewriteLoading}
@@ -1540,37 +1605,34 @@ function App() {
                     </div>
                   )}
 
+                  {/* PRINT SPECS */}
                   <div className="print-specs">
-                    <h3>Print / Cover Specs (Approx.)</h3>
-                    <p className="print-hint">
-                      Use the estimated pages or override with your final KDP
-                      page count. Values are approximate—always confirm with
-                      KDP’s cover calculator before final upload.
-                    </p>
+                    <h3>Print / Cover Specs</h3>
                     <div className="print-controls">
                       <label>
-                        Page count (optional override):
+                        Page count override:
                         <input
                           type="number"
-                          min={1}
                           value={pageCountOverride}
                           onChange={(e) =>
                             setPageCountOverride(e.target.value)
                           }
                         />
                       </label>
+
                       <label>
                         Paper type:
                         <select
                           value={paperType}
                           onChange={(e) => setPaperType(e.target.value)}
                         >
-                          <option value="white">White (B&amp;W)</option>
-                          <option value="cream">Cream (B&amp;W)</option>
+                          <option value="white">White</option>
+                          <option value="cream">Cream</option>
                           <option value="color">Color</option>
                         </select>
                       </label>
                     </div>
+
                     <button onClick={handleCalculatePrintSpecs}>
                       Calculate Print Specs
                     </button>
@@ -1580,36 +1642,27 @@ function App() {
                         <p>
                           Using <strong>{printSpecs.pageCount}</strong> pages at{" "}
                           <strong>{printSpecs.trim}</strong> on{" "}
-                          <strong>{printSpecs.paperType}</strong> paper.
+                          <strong>{printSpecs.paperType}</strong>.
                         </p>
                         <p>
-                          Spine width:{" "}
+                          Spine:{" "}
                           <strong>
                             {printSpecs.spineWidthIn.toFixed(3)} in (
                             {printSpecs.spineWidthMm.toFixed(2)} mm)
                           </strong>
                         </p>
                         <p>
-                          Full cover size (incl. bleed, approx.):{" "}
+                          Full cover:{" "}
                           <strong>
-                            {printSpecs.fullCoverWidthIn.toFixed(3)} in wide ×{" "}
-                            {printSpecs.fullCoverHeightIn.toFixed(3)} in tall
+                            {printSpecs.fullCoverWidthIn.toFixed(3)} in ×{" "}
+                            {printSpecs.fullCoverHeightIn.toFixed(3)} in
                           </strong>
-                        </p>
-                        <p className="print-hint">
-                          Use these as planning values and cross-check with your
-                          actual KDP project.
                         </p>
 
                         {coverTemplateJSON && (
                           <div className="cover-helper">
                             <h4>Cover Template (JSON)</h4>
-                            <p className="print-hint">
-                              Copy this into your design notes, Figma, or other
-                              tools as a quick reference.
-                            </p>
                             <textarea
-                              className="cover-json-textarea"
                               readOnly
                               rows={8}
                               value={coverTemplateJSON}
@@ -1620,13 +1673,9 @@ function App() {
                     )}
                   </div>
 
+                  {/* INSIGHTS */}
                   <div className="insights-section">
                     <h3>Manuscript Insights</h3>
-                    <p className="print-hint">
-                      Quick stats based on your current manuscript. Chapter
-                      detection is approximate and looks for lines like
-                      &quot;Chapter 1&quot; or &quot;CHAPTER II&quot;.
-                    </p>
                     <button onClick={handleAnalyzeManuscript}>
                       Analyze Manuscript
                     </button>
@@ -1634,42 +1683,22 @@ function App() {
                     {manuscriptInsights && (
                       <div className="insights-output">
                         <p>
-                          Total words:{" "}
+                          Words:{" "}
                           <strong>{manuscriptInsights.totalWords}</strong>
                         </p>
                         <p>
-                          Approx. reading time:{" "}
+                          Reading time:{" "}
                           <strong>
                             {manuscriptInsights.readingMinutesRounded} minutes
                           </strong>
                         </p>
                         <p>
-                          Chapter-like sections detected:{" "}
+                          Sections detected:{" "}
                           <strong>{manuscriptInsights.chapterCount}</strong>
-                        </p>
-                        <p>
-                          Avg. words per chapter:{" "}
-                          <strong>
-                            {manuscriptInsights.avgWordsPerChapter}
-                          </strong>
-                        </p>
-                        <p>
-                          Longest section:{" "}
-                          <strong>
-                            {manuscriptInsights.longest.title} (
-                            {manuscriptInsights.longest.wordCount} words)
-                          </strong>
-                        </p>
-                        <p>
-                          Shortest section:{" "}
-                          <strong>
-                            {manuscriptInsights.shortest.title} (
-                            {manuscriptInsights.shortest.wordCount} words)
-                          </strong>
                         </p>
 
                         <details>
-                          <summary>Show all chapter-like sections</summary>
+                          <summary>Show sections</summary>
                           <ul>
                             {manuscriptInsights.chapterSummaries.map(
                               (ch: any, idx: number) => (
@@ -1685,21 +1714,14 @@ function App() {
                     )}
                   </div>
 
+                  {/* OUTLINE */}
                   <div className="outline-section">
-                    <h3>AI Outline &amp; Chapter Map</h3>
-                    <p className="print-hint">
-                      Generate a structured overview of your book based on the
-                      manuscript and your style profile. Helpful for revision,
-                      KDP copy, or series planning.
-                    </p>
+                    <h3>AI Outline</h3>
                     <button
-                      type="button"
                       onClick={handleGenerateOutline}
-                      disabled={outlineLoading || !manuscript.trim()}
+                      disabled={outlineLoading}
                     >
-                      {outlineLoading
-                        ? "Generating outline..."
-                        : "Generate Outline"}
+                      {outlineLoading ? "Generating…" : "Generate Outline"}
                     </button>
 
                     <textarea
@@ -1707,182 +1729,131 @@ function App() {
                       value={chapterOutline}
                       onChange={(e) => setChapterOutline(e.target.value)}
                       rows={10}
-                      placeholder="The AI-generated outline will appear here. You can edit, annotate, or copy it into your notes."
+                      placeholder="Outline will appear here..."
                     />
                   </div>
 
+                  {/* STYLE PROFILE */}
                   <div className="style-section">
-                    <h3>Style &amp; Voice Profile</h3>
-                    <p className="print-hint">
-                      This profile travels with the project and guides rewrites,
-                      chat, and back-cover copy.
-                    </p>
-
+                    <h3>Style & Voice</h3>
                     <div className="style-grid">
                       <label>
-                        Tone / Mood
+                        Tone
                         <input
-                          type="text"
                           value={styleProfile.tone}
-                          onChange={(e) => {
-                            setStyleProfile((prev) => ({
-                              ...prev,
+                          onChange={(e) =>
+                            setStyleProfile({
+                              ...styleProfile,
                               tone: e.target.value
-                            }));
-                            setIsDirty(true);
-                          }}
-                          placeholder="introspective, mystical, grounded…"
+                            })
+                          }
                         />
                       </label>
-
                       <label>
                         Audience
                         <input
-                          type="text"
                           value={styleProfile.audience}
-                          onChange={(e) => {
-                            setStyleProfile((prev) => ({
-                              ...prev,
+                          onChange={(e) =>
+                            setStyleProfile({
+                              ...styleProfile,
                               audience: e.target.value
-                            }));
-                            setIsDirty(true);
-                          }}
-                          placeholder="spiritually curious adults…"
+                            })
+                          }
                         />
                       </label>
-
                       <label>
                         Genre
                         <input
-                          type="text"
                           value={styleProfile.genre}
-                          onChange={(e) => {
-                            setStyleProfile((prev) => ({
-                              ...prev,
+                          onChange={(e) =>
+                            setStyleProfile({
+                              ...styleProfile,
                               genre: e.target.value
-                            }));
-                            setIsDirty(true);
-                          }}
-                          placeholder="metaphysical non-fiction, sci-fi, memoir…"
+                            })
+                          }
                         />
                       </label>
-
                       <label>
                         POV
                         <input
-                          type="text"
                           value={styleProfile.pov}
-                          onChange={(e) => {
-                            setStyleProfile((prev) => ({
-                              ...prev,
+                          onChange={(e) =>
+                            setStyleProfile({
+                              ...styleProfile,
                               pov: e.target.value
-                            }));
-                            setIsDirty(true);
-                          }}
-                          placeholder="first person, third person limited…"
+                            })
+                          }
                         />
                       </label>
-
                       <label>
                         Tense
                         <input
-                          type="text"
                           value={styleProfile.tense}
-                          onChange={(e) => {
-                            setStyleProfile((prev) => ({
-                              ...prev,
+                          onChange={(e) =>
+                            setStyleProfile({
+                              ...styleProfile,
                               tense: e.target.value
-                            }));
-                            setIsDirty(true);
-                          }}
-                          placeholder="present, past…"
+                            })
+                          }
                         />
                       </label>
-
                       <label>
                         Pacing
                         <input
-                          type="text"
                           value={styleProfile.pacing}
-                          onChange={(e) => {
-                            setStyleProfile((prev) => ({
-                              ...prev,
+                          onChange={(e) =>
+                            setStyleProfile({
+                              ...styleProfile,
                               pacing: e.target.value
-                            }));
-                            setIsDirty(true);
-                          }}
-                          placeholder="slow and reflective, fast and intense…"
+                            })
+                          }
                         />
                       </label>
-
                       <label>
                         Formality
                         <input
-                          type="text"
                           value={styleProfile.formality}
-                          onChange={(e) => {
-                            setStyleProfile((prev) => ({
-                              ...prev,
+                          onChange={(e) =>
+                            setStyleProfile({
+                              ...styleProfile,
                               formality: e.target.value
-                            }));
-                            setIsDirty(true);
-                          }}
-                          placeholder="casual, medium-formal, poetic…"
+                            })
+                          }
                         />
                       </label>
                     </div>
 
                     <label className="style-notes-label">
-                      Additional notes to the AI
+                      Notes
                       <textarea
                         rows={3}
                         value={styleProfile.notes}
-                        onChange={(e) => {
-                          setStyleProfile((prev) => ({
-                            ...prev,
+                        onChange={(e) =>
+                          setStyleProfile({
+                            ...styleProfile,
                             notes: e.target.value
-                          }));
-                          setIsDirty(true);
-                        }}
-                        placeholder="Anything else about your voice, rhythm, or what to avoid..."
+                          })
+                        }
                       />
                     </label>
                   </div>
 
+                  {/* BACK COVER */}
                   <div className="marketing-section">
-                    <h3>Back-cover / Marketing Copy</h3>
-                    <p className="print-hint">
-                      Generate a draft back-cover description using your current
-                      manuscript and style profile as context. You can refine or
-                      edit the result manually after generation.
-                    </p>
-                    <div className="marketing-buttons-row">
-                      <button
-                        type="button"
-                        onClick={handleGenerateBackCover}
-                        disabled={backCoverLoading || !manuscript.trim()}
-                      >
-                        {backCoverLoading
-                          ? "Generating back-cover description..."
-                          : "Generate Back-cover Blurb"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleDownloadKdpSheet}
-                        disabled={!selectedProject}
-                        style={{ marginLeft: "0.75rem" }}
-                      >
-                        Download KDP Sheet (.txt)
-                      </button>
-                    </div>
+                    <h3>Back-cover Description</h3>
+                    <button
+                      onClick={handleGenerateBackCover}
+                      disabled={backCoverLoading}
+                    >
+                      {backCoverLoading ? "Generating…" : "Generate Blurb"}
+                    </button>
 
                     <textarea
                       className="marketing-textarea"
                       value={backCoverBlurb}
                       onChange={(e) => setBackCoverBlurb(e.target.value)}
                       rows={6}
-                      placeholder="Generated back-cover description will appear here. You can edit it freely."
+                      placeholder="Back-cover description..."
                     />
                   </div>
                 </section>
@@ -1891,15 +1862,11 @@ function App() {
           </>
         )}
 
-        {/* ---------- ASSISTANT VIEW (full-screen AI consoles) ---------- */}
+        {/* ASSISTANT VIEW */}
         {activeView === "assistant" && selectedProject && (
           <div className="assistant-page">
             <header className="assistant-header">
               <h2>AI Assistant for: {selectedProject.title}</h2>
-              <p className="assistant-subtitle">
-                Co-author, developer console, and model status in one focused
-                space.
-              </p>
             </header>
 
             <div className="assistant-layout">
@@ -1907,10 +1874,8 @@ function App() {
               <section className="chat-section chat-section-full">
                 <h3>AI Consoles</h3>
 
-                {/* Tab buttons */}
                 <div className="console-tabs">
                   <button
-                    type="button"
                     className={
                       consoleTab === "book"
                         ? "console-tab console-tab-active"
@@ -1921,7 +1886,6 @@ function App() {
                     📖 Book Co-Author
                   </button>
                   <button
-                    type="button"
                     className={
                       consoleTab === "dev"
                         ? "console-tab console-tab-active"
@@ -1929,26 +1893,32 @@ function App() {
                     }
                     onClick={() => setConsoleTab("dev")}
                   >
-                    💻 Dev / Coding Console
+                    💻 Dev Console
+                  </button>
+                  <button
+                    className={
+                      consoleTab === "research"
+                        ? "console-tab console-tab-active"
+                        : "console-tab"
+                    }
+                    onClick={() => setConsoleTab("research")}
+                  >
+                    🔍 Research
                   </button>
                 </div>
 
-                {/* --- Book Co-author console (contextual chat) --- */}
+                {/* BOOK CHAT */}
                 {consoleTab === "book" && (
                   <div className="console-pane console-pane-animated">
                     <p className="console-hint">
-                      This console talks about your{" "}
-                      <strong>current manuscript</strong> and
-                      <strong> style profile</strong>. Use it for structure,
-                      pacing, tone, chapter ideas, etc.
+                      This console uses your manuscript & style profile as
+                      context.
                     </p>
 
                     <div className="chat-log chat-log-large">
                       {chatMessages.length === 0 && (
                         <p className="chat-placeholder">
-                          Ask the AI about your manuscript, structure, tone, or
-                          ideas. It will use the current manuscript text and
-                          style profile as context.
+                          Ask anything about structure, tone, pacing, etc.
                         </p>
                       )}
                       {chatMessages.map((m, idx) => (
@@ -1971,36 +1941,26 @@ function App() {
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         rows={4}
-                        placeholder="Ask about structure, tone, pacing, or how to revise a chapter…"
+                        placeholder="Ask for ideas, structure, tone…"
                       />
-                      <button
-                        onClick={handleSendChat}
-                        disabled={chatLoading}
-                      >
-                        {chatLoading ? "Sending..." : "Send"}
+                      <button onClick={handleSendChat} disabled={chatLoading}>
+                        {chatLoading ? "Sending…" : "Send"}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* --- Dev / Coding console (general AI) --- */}
+                {/* DEV CHAT */}
                 {consoleTab === "dev" && (
                   <div className="console-pane console-pane-animated">
                     <p className="console-hint">
-                      This console is for{" "}
-                      <strong>
-                        building and debugging Infinite Publisher
-                      </strong>
-                      . It doesn’t see your manuscript automatically — paste
-                      code snippets, error messages, or ideas you want to
-                      explore.
+                      General-purpose dev assistant. Paste errors or code.
                     </p>
 
                     <div className="chat-log chat-log-large">
                       {devChatMessages.length === 0 && (
                         <p className="chat-placeholder">
-                          Paste an error message, code snippet, or ask about new
-                          features you want to build into the app.
+                          Paste an error message or ask about features.
                         </p>
                       )}
                       {devChatMessages.map((m, idx) => (
@@ -2023,20 +1983,30 @@ function App() {
                         value={devChatInput}
                         onChange={(e) => setDevChatInput(e.target.value)}
                         rows={4}
-                        placeholder="Ask about Electron packaging, API design, error messages, or future upgrades…"
+                        placeholder="Ask about Electron, APIs, packaging…"
                       />
                       <button
                         onClick={handleSendDevChat}
                         disabled={devChatLoading}
                       >
-                        {devChatLoading ? "Sending..." : "Send"}
+                        {devChatLoading ? "Sending…" : "Send"}
                       </button>
                     </div>
                   </div>
                 )}
+
+                {/* RESEARCH PANEL */}
+                {consoleTab === "research" && (
+                  <div className="console-pane console-pane-animated">
+                    <p className="console-hint">
+                      Search & fact-check using external APIs.
+                    </p>
+                    <ResearchPanel apiBase={API_BASE} manuscript={manuscript} />
+                  </div>
+                )}
               </section>
 
-              {/* Right: Model status / quick info */}
+              {/* Right side — model status */}
               <aside className="assistant-sidebar">
                 <ModelStatusPanel apiBase={API_BASE} />
               </aside>
