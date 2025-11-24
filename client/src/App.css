@@ -1,3 +1,28 @@
+/* ========= Infinite Publisher – Cosmic Theme ========= */
+
+/* ---------- Design tokens ---------- */
+
+:root {
+  --bg: #020314;
+  --bg-soft: #05071e;
+  --bg-elevated: #070a23;
+  --bg-card: #0b102b;
+  --bg-card-soft: #101533;
+  --border-subtle: rgba(129, 140, 248, 0.25);
+  --border-strong: rgba(196, 181, 253, 0.7);
+  --accent: #a855f7;
+  --accent-soft: rgba(168, 85, 247, 0.18);
+  --accent-strong: #f97316;
+  --accent-alt: #22c55e;
+  --text-main: #f9fafb;
+  --text-soft: #e5e7eb;
+  --text-muted: #9ca3af;
+  --danger: #fb7185;
+  --shadow-soft: 0 22px 50px rgba(0, 0, 0, 0.9);
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+}
+
 /* ========= Global / Base layout ========= */
 
 *,
@@ -10,26 +35,54 @@ html,
 body,
 #root {
   height: 100%;
+  width: 100%;
   margin: 0;
 }
-
 body {
   margin: 0;
+  width: 100%;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  background: #020617; /* deep slate */
-  color: #0f172a;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.18), transparent 55%),
+    var(--bg);
+  color: var(--text-main);
+  overflow-x: hidden; /* prevents horizontal scroll / white strip */
+}
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.7) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.8);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Root container – flex layout so app-main can scroll */
 .app-root {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at top, #020617 0%, #020617 40%, #020617 100%);
-  color: #0f172a;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 50%),
+    radial-gradient(circle at bottom, rgba(244, 114, 182, 0.12), transparent 55%),
+    var(--bg);
+  color: var(--text-main);
 }
-
 /* Main content area – scrolls inside the app */
 .app-main {
   flex: 1;
@@ -43,26 +96,80 @@ body {
   max-width: 1280px;
   margin: 0 auto;
 }
+/* Library start screen layout + infinity hero */
+.library {
+  position: relative;
+  padding-bottom: 4rem;
+}
 
+.infinite-hero {
+  margin-top: 4rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 260px;
+  pointer-events: none; /* purely decorative */
+}
+
+/* Make the infinity animation fill more of the open space */
+.infinite-hero-svg {
+  width: 65vw;        /* scales with window width */
+  max-width: 900px;   /* cap on huge screens */
+}
+/* animated “drawing” of the infinity stroke */
+.infinite-hero-path {
+  stroke-dasharray: 900;
+  stroke-dashoffset: 900;
+  animation: infiniteStrokeDraw 8s ease-in-out infinite;
+}
+
+@keyframes infiniteStrokeDraw {
+  0% {
+    stroke-dashoffset: 900;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  60% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.3;
+  }
+}
 /* ========= Header ========= */
 
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 2rem;
-  background: #020617;
-  color: #f9fafb;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 1.1rem 2rem;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.25), transparent 60%),
+    linear-gradient(120deg, #020617, #020314 55%, #020617 100%);
+  color: var(--text-soft);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
   position: sticky;
   top: 0;
   z-index: 10;
+  backdrop-filter: blur(16px);
 }
 
 .app-header h1 {
   margin: 0;
   font-size: clamp(1.75rem, 3vw, 2.4rem);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #e5e7ff;
+}
+
+.subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
 }
 
 .header-right {
@@ -74,22 +181,17 @@ body {
 .project-meta {
   display: flex;
   flex-direction: column;
-  font-size: 0.85rem;
-  color: #cbd5f5;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: right;
 }
 
 .save-status {
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .save-status-dirty {
-  color: #f97316;
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 0.95rem;
-  color: #e5e7eb;
+  color: #fb923c;
 }
 
 /* ========= Global controls ========= */
@@ -97,10 +199,10 @@ body {
 .app-root button {
   border: none;
   border-radius: 999px;
-  background: #3b82f6;
+  background: radial-gradient(circle at top left, #4f46e5, #a855f7);
   color: white;
   font-size: 0.9rem;
-  padding: 0.45rem 1rem;
+  padding: 0.45rem 1.05rem;
   font-weight: 500;
   cursor: pointer;
   display: inline-flex;
@@ -108,21 +210,21 @@ body {
   justify-content: center;
   gap: 0.3rem;
   transition:
-    background-color 0.15s ease,
-    transform 0.08s ease,
-    box-shadow 0.15s ease;
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
+    transform 0.1s ease,
+    box-shadow 0.2s ease,
+    filter 0.12s ease;
+  box-shadow: 0 10px 26px rgba(79, 70, 229, 0.7);
 }
 
 .app-root button:hover {
-  background: #2563eb;
+  filter: brightness(1.06);
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 18px 40px rgba(129, 140, 248, 0.9);
 }
 
 .app-root button:active {
   transform: translateY(0);
-  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 7px 16px rgba(79, 70, 229, 0.8);
 }
 
 .app-root button:disabled {
@@ -140,16 +242,17 @@ body {
 .app-root textarea {
   font-family: inherit;
   font-size: 0.9rem;
+  color: var(--text-main);
 }
 
 .app-root input[type="text"],
 .app-root input[type="number"],
 .app-root select {
   padding: 0.4rem 0.55rem;
-  border-radius: 0.5rem;
-  border: 1px solid #cbd5f5;
-  background: #ffffff;
-  color: #0f172a;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text-main);
   min-width: 0;
 }
 
@@ -157,18 +260,19 @@ body {
 .app-root input[type="number"]:focus,
 .app-root select:focus,
 .app-root textarea:focus {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid rgba(129, 140, 248, 0.8);
   outline-offset: 1px;
-  border-color: #3b82f6;
+  border-color: rgba(196, 181, 253, 0.9);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
 }
 
 .app-root textarea {
-  border-radius: 0.75rem;
-  border: 1px solid #d1d5db;
-  padding: 0.6rem 0.7rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  padding: 0.6rem 0.75rem;
   resize: vertical;
-  background: #ffffff;
-  color: #0f172a;
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text-main);
 }
 
 /* ========= Settings panel ========= */
@@ -176,16 +280,22 @@ body {
 .settings-panel {
   max-width: 1280px;
   margin: 0 auto 1rem;
-  background: #0b1120;
-  color: #e5e7eb;
-  border-radius: 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 55%),
+    var(--bg-card);
+  color: var(--text-soft);
+  border-radius: var(--radius-lg);
   padding: 1rem 1.25rem;
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-soft);
 }
 
 .settings-panel h2 {
   margin-top: 0;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #bfdbfe;
 }
 
 .settings-group {
@@ -194,7 +304,7 @@ body {
 
 .settings-hint {
   font-size: 0.8rem;
-  color: #cbd5f5;
+  color: var(--text-muted);
   margin: 0.25rem 0 0.6rem;
 }
 
@@ -202,25 +312,33 @@ body {
   margin-top: 0.75rem;
   font-size: 0.8rem;
   background: #020617;
-  border-radius: 0.5rem;
-  padding: 0.5rem;
+  border-radius: 0.7rem;
+  padding: 0.6rem;
   overflow-x: auto;
+  border: 1px solid rgba(30, 64, 175, 0.8);
 }
 
 /* ========= Library view ========= */
 
 .new-project,
 .project-list {
-  background: #f9fafb;
-  border-radius: 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.15), transparent 55%),
+    var(--bg-card-soft);
+  border-radius: var(--radius-lg);
   padding: 1.25rem 1.5rem;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow-soft);
   margin-bottom: 1.25rem;
+  border: 1px solid var(--border-subtle);
 }
 
 .new-project h2,
 .project-list h2 {
   margin-top: 0;
+  color: #e5e7ff;
+  letter-spacing: 0.08em;
+  font-size: 0.95rem;
+  text-transform: uppercase;
 }
 
 .project-list ul {
@@ -233,8 +351,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.7);
 }
 
 .project-card:last-child {
@@ -242,43 +360,42 @@ body {
 }
 
 .project-card .meta {
-  margin: 0.25rem 0 0;
+  margin: 0.15rem 0 0;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 /* ========= Workspace layout ========= */
 
+/* Stack "Next steps" and the Manuscript Editor vertically, full width */
 .workspace {
   display: grid;
-  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
-  align-items: flex-start;
-}
-
-@media (max-width: 1000px) {
-  .workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  align-items: stretch;
 }
 
 /* ========= Workflow steps ========= */
 
 .workflow-steps {
-  background: radial-gradient(circle at top left, #1e293b 0%, #020617 70%);
-  color: #e5e7eb;
-  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.5), transparent 60%),
+    radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.3), transparent 60%),
+    var(--bg-elevated);
+  color: var(--text-soft);
+  border-radius: var(--radius-xl);
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.25rem;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.7);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(196, 181, 253, 0.5);
 }
 
 .workflow-steps h2 {
   margin-top: 0;
-  font-size: 1.05rem;
-  letter-spacing: 0.03em;
+  font-size: 0.98rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #bfdbfe;
+  color: #fef2ff;
 }
 
 .workflow-steps ol {
@@ -292,25 +409,32 @@ body {
 }
 
 .workflow-steps strong {
-  color: #e5e7eb;
+  color: #e0f2fe;
 }
 
 .workflow-steps span {
-  color: #cbd5f5;
+  color: #c4b5fd;
   font-size: 0.9rem;
 }
 
 /* ========= Editor section ========= */
 
 .editor-section {
-  background: #f9fafb;
-  border-radius: 1.25rem;
-  padding: 1.25rem 1.5rem 1.5rem;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.15), transparent 55%),
+    var(--bg-card);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem 1.5rem 1.6rem;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-subtle);
 }
 
 .editor-section h2 {
   margin-top: 0;
+  color: #e5e7ff;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.95rem;
 }
 
 .upload-row {
@@ -322,26 +446,27 @@ body {
 }
 
 .upload-row.drop-enabled {
-  border: 2px dashed #888;
-  border-radius: 6px;
+  border: 2px dashed rgba(148, 163, 184, 0.7);
+  border-radius: 0.9rem;
   padding: 0.75rem;
   margin-bottom: 1rem;
-  background: #f3f4f6;
+  background: rgba(15, 23, 42, 0.85);
 }
 
 .upload-hint {
   margin: 0;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .import-status {
   font-size: 0.9rem;
   font-style: italic;
+  color: #e0f2fe;
 }
 
 .error {
-  color: #b00020;
+  color: var(--danger);
   font-size: 0.9rem;
 }
 
@@ -362,16 +487,17 @@ body {
 .editor-section textarea {
   width: 100%;
   margin-top: 0.75rem;
-  min-height: 260px;
+  min-height: 60vh; /* big reading/writing window */
   font-family: "Georgia", "Times New Roman", serif;
   line-height: 1.5;
+  background: rgba(15, 23, 42, 0.9);
 }
 
 .editor-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.85rem;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
 }
 
 /* ========= Rewrite helpers ========= */
@@ -379,7 +505,7 @@ body {
 .rewrite-status {
   margin: 0.75rem 0 0.25rem;
   font-size: 0.85rem;
-  color: #4b5563;
+  color: var(--text-muted);
 }
 
 .rewrite-actions {
@@ -402,25 +528,27 @@ body {
 .format-result {
   margin-top: 1rem;
   padding: 0.75rem 0.9rem;
-  border-radius: 0.75rem;
-  background: #eef2ff;
+  border-radius: 0.9rem;
+  background: rgba(17, 24, 39, 0.9);
   font-size: 0.9rem;
+  border: 1px solid rgba(129, 140, 248, 0.6);
 }
 
 .print-specs {
   margin-top: 1.2rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(55, 65, 81, 0.9);
 }
 
 .print-specs h3 {
   margin-top: 0.25rem;
+  color: #e5e7ff;
 }
 
 .print-hint {
   margin: 0.25rem 0 0.65rem;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .print-controls {
@@ -451,7 +579,7 @@ body {
 .insights-section {
   margin-top: 1.2rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(55, 65, 81, 0.9);
 }
 
 .insights-output {
@@ -472,7 +600,7 @@ body {
 .outline-section {
   margin-top: 1.2rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(55, 65, 81, 0.9);
 }
 
 .outline-textarea {
@@ -486,7 +614,7 @@ body {
 .style-section {
   margin-top: 1.2rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(55, 65, 81, 0.9);
 }
 
 .style-grid {
@@ -516,7 +644,7 @@ body {
 .marketing-section {
   margin-top: 1.2rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(55, 65, 81, 0.9);
 }
 
 .marketing-buttons-row {
@@ -534,35 +662,42 @@ body {
 /* ========= Chat column (Workspace) ========= */
 
 .chat-section {
-  background: #f9fafb;
-  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 55%),
+    var(--bg-card);
+  border-radius: var(--radius-xl);
   padding: 1.25rem 1.4rem 1.5rem;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border-subtle);
 }
 
 .chat-section h2 {
   margin-top: 0;
+  color: #e5e7ff;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  font-size: 0.9rem;
 }
 
 .chat-log {
   max-height: 420px;
   overflow-y: auto;
   padding: 0.4rem 0;
-  border-radius: 0.75rem;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border-radius: 0.9rem;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(55, 65, 81, 0.9);
 }
 
 .chat-placeholder {
   margin: 0.75rem;
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .chat-msg {
   padding: 0.5rem 0.75rem;
   margin: 0.25rem 0.5rem;
-  border-radius: 0.75rem;
+  border-radius: 0.85rem;
   font-size: 0.9rem;
 }
 
@@ -573,13 +708,17 @@ body {
 }
 
 .chat-msg.user {
-  background: #dbeafe;
+  background: linear-gradient(135deg, #38bdf8, #4f46e5);
   align-self: flex-end;
+  color: #f9fafb;
 }
 
 .chat-msg.assistant {
-  background: #e5e7eb;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(59, 130, 246, 0.12));
+  border: 1px solid rgba(34, 197, 94, 0.5);
 }
+
+/* Chat input */
 
 .chat-input-row {
   margin-top: 0.75rem;
@@ -597,7 +736,7 @@ body {
 .research-section {
   margin-top: 1.25rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid rgba(55, 65, 81, 0.9);
 }
 
 .research-block + .research-block {
@@ -622,8 +761,8 @@ body {
 }
 
 .suggestion-chips button {
-  background: #e5e7eb;
-  color: #111827;
+  background: rgba(148, 163, 184, 0.18);
+  color: #e5e7eb;
   box-shadow: none;
 }
 
@@ -649,9 +788,9 @@ body {
 }
 
 .view-tab {
-  border: 1px solid #cbd5e1;
-  background: #e5e7eb;
-  color: #1f2937;
+  border: 1px solid rgba(148, 163, 184, 0.9);
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
   padding: 0.25rem 0.75rem;
   border-radius: 999px;
   font-size: 0.85rem;
@@ -660,8 +799,9 @@ body {
 }
 
 .view-tab-active {
-  background: #4f46e5;
+  background: linear-gradient(135deg, #4f46e5, #a855f7);
   color: #ffffff;
+  border-color: rgba(196, 181, 253, 0.9);
 }
 
 .view-tab:disabled {
@@ -678,19 +818,19 @@ body {
 }
 
 .console-tab {
-  background: #e5e7eb;
-  color: #1f2937;
-  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+  border-radius: 0.6rem;
   padding: 0.35rem 0.75rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.7);
   cursor: pointer;
   font-size: 0.9rem;
 }
 
 .console-tab-active {
-  background: #6366f1;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
   color: #ffffff;
-  border-color: #4f46e5;
+  border-color: rgba(196, 181, 253, 0.9);
 }
 
 .console-pane {
@@ -699,8 +839,9 @@ body {
 
 .console-hint {
   font-size: 0.85rem;
-  opacity: 0.85;
+  opacity: 0.9;
   margin-bottom: 0.5rem;
+  color: var(--text-muted);
 }
 
 /* ========= Assistant full-page layout ========= */
@@ -710,21 +851,27 @@ body {
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
-  background: linear-gradient(135deg, #f7f7fa 0%, #ececf4 100%);
-  border-radius: 1rem;
-  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.5);
-  color: #1f2937;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.32), transparent 60%),
+    radial-gradient(circle at bottom right, rgba(244, 114, 182, 0.24), transparent 60%),
+    #020314;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-main);
+  border: 1px solid var(--border-strong);
 }
 
 .assistant-header h2 {
   margin: 0;
-  font-size: 1.4rem;
-  color: #1e293b;
+  font-size: 1.3rem;
+  color: #e5e7ff;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .assistant-subtitle {
   margin-top: 0.25rem;
-  color: #475569;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -738,11 +885,11 @@ body {
 /* Card-style layout panels */
 .chat-section.chat-section-full,
 .assistant-sidebar {
-  background: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 0.75rem;
-  color: #1f2937;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.8);
+  border-radius: 0.9rem;
+  color: var(--text-soft);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.7);
 }
 
 .assistant-sidebar {
@@ -773,21 +920,21 @@ body {
 
 /* High-contrast bubbles in assistant view only */
 .assistant-page .chat-msg {
-  border-radius: 0.75rem;
+  border-radius: 0.9rem;
   margin-bottom: 0.5rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.45rem 0.65rem;
 }
 
 .assistant-page .chat-msg.user {
-  background: #e0f2fe;
-  border-left: 4px solid #38bdf8;
-  color: #0f172a;
+  background: linear-gradient(135deg, #38bdf8, #4f46e5);
+  border-left: 3px solid #7dd3fc;
+  color: #f9fafb;
 }
 
 .assistant-page .chat-msg.assistant {
-  background: #f0fdf4;
-  border-left: 4px solid #4ade80;
-  color: #1f2937;
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.35), rgba(59, 130, 246, 0.2));
+  border-left: 3px solid #4ade80;
+  color: var(--text-soft);
 }
 
 /* Bright textareas in consoles / assistant */
@@ -795,10 +942,110 @@ body {
 .chat-input-row textarea,
 .outline-textarea,
 .marketing-textarea {
-  background: #fafafa;
-  color: #111827;
-  border: 1px solid #cbd5e1;
+  background: rgba(15, 23, 42, 0.95);
+  color: var(--text-main);
+  border: 1px solid rgba(148, 163, 184, 0.9);
 }
+
+/* ========= Infinite golden border frame – golden fuse ========= */
+
+/* Use on AI-assisted panels: .ai-frame */
+.ai-frame {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden; /* keeps glow inside */
+}
+
+/* Golden “fuse” crawling around the border */
+.ai-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+
+  /* Gradient that slides along the ring */
+  background:
+    linear-gradient(
+      90deg,
+      rgba(250, 204, 21, 0.0),
+      rgba(250, 204, 21, 1.0),
+      rgba(249, 115, 22, 1.0),
+      rgba(253, 224, 71, 0.0)
+    );
+
+  background-size: 300% 300%;
+
+  /* Show only as a border ring, not fill */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+
+  animation: goldenFuse 8s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Content sits above the golden ring */
+.ai-frame > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Animation: slide gradient, do NOT rotate the box */
+@keyframes goldenFuse {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* ========= Cursor styling ========= */
+
+/* Slightly sharper default cursor for the app */
+body {
+  cursor: default;
+}
+
+/* Clickable elements feel more "alive" */
+.app-root button,
+.view-tab,
+.console-tab,
+.suggestion-chips button,
+.chat-msg,
+.project-card,
+.research-results a {
+  cursor: pointer;
+}
+
+/* Optional: special cursor when hovering core creative zones */
+.editor-section textarea,
+.chat-input-row textarea,
+.outline-textarea,
+.marketing-textarea {
+  cursor: text;
+}
+
+/* OPTIONAL CUSTOM CURSOR (requires you to add an image) */
+/*
+body {
+  cursor: url("/cursor-infinite.png") 8 8, default;
+}
+
+.app-root button,
+.view-tab,
+.console-tab,
+.suggestion-chips button {
+  cursor: url("/cursor-infinite.png") 8 8, pointer;
+}
+*/
 
 /* ========= Small screens tweaks ========= */
 

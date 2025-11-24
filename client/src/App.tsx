@@ -1212,7 +1212,8 @@ Style profile (JSON): ${JSON.stringify(styleProfile ?? {}, null, 2)}`;
           2
         )
       : "";
-return (
+
+  return (
     <div className="app-root">
       <header className="app-header">
         <h1>Infinite Publisher – MVP</h1>
@@ -1390,6 +1391,7 @@ return (
         {/* WORKSPACE VIEW */}
         {activeView === "workspace" && (
           <>
+            {/* ===== LIBRARY (no project selected) ===== */}
             {!selectedProject && (
               <div className="library">
                 <section className="new-project">
@@ -1434,9 +1436,93 @@ return (
                     ))}
                   </ul>
                 </section>
+
+                {/* Infinity shooting star hero in the empty space below */}
+                <div className="infinite-hero">
+                  <svg
+                    className="infinite-hero-svg"
+                    viewBox="0 0 400 200"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <defs>
+                      <linearGradient
+                        id="infiniteGradient"
+                        x1="0%"
+                        y1="0%"
+                        x2="100%"
+                        y2="0%"
+                      >
+                        <stop offset="0%" stopColor="#facc15" />
+                        <stop offset="40%" stopColor="#f97316" />
+                        <stop offset="70%" stopColor="#fde047" />
+                        <stop offset="100%" stopColor="#facc15" />
+                      </linearGradient>
+
+                      <filter
+                        id="infiniteGlow"
+                        x="-50%"
+                        y="-50%"
+                        width="200%"
+                        height="200%"
+                      >
+                        <feGaussianBlur stdDeviation="4" result="blur" />
+                        <feColorMatrix
+                          in="blur"
+                          type="matrix"
+                          values="1 0 0 0 0
+                                  0.8 0.6 0 0 0
+                                  0 0 0 0 0
+                                  0 0 0 0.9 0"
+                        />
+                        <feMerge>
+                          <feMergeNode />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+
+                    {/* Infinity path */}
+                    <path
+                      id="infinityPath"
+                      d="
+                        M 60 100
+                        C 60 50 140 50 200 100
+                        C 260 150 340 150 340 100
+                        C 340 50 260 50 200 100
+                        C 140 150 60 150 60 100
+                      "
+                      fill="none"
+                      stroke="url(#infiniteGradient)"
+                      strokeWidth={2.5}
+                      className="infinite-hero-path"
+                      filter="url(#infiniteGlow)"
+                    />
+
+                    {/* Shooting star */}
+                    <circle
+                      r={4}
+                      fill="#fef9c3"
+                      stroke="#fbbf24"
+                      strokeWidth={1}
+                      filter="url(#infiniteGlow)"
+                    >
+                      <animateMotion
+                        dur="7s"
+                        repeatCount="indefinite"
+                        rotate="auto"
+                        keySplines="0.4 0 0.2 1"
+                        keyTimes="0;1"
+                        calcMode="spline"
+                      >
+                        <mpath xlinkHref="#infinityPath" />
+                      </animateMotion>
+                    </circle>
+                  </svg>
+                </div>
               </div>
             )}
 
+            {/* ===== WORKSPACE (project selected) ===== */}
             {selectedProject && (
               <div className="workspace">
                 <section className="workflow-steps">
@@ -1458,7 +1544,7 @@ return (
                 </section>
 
                 {/* MANUSCRIPT EDITOR */}
-                <section className="editor-section">
+                <section className="editor-section ai-frame">
                   <h2>Manuscript Editor</h2>
 
                   <div
@@ -1735,7 +1821,7 @@ return (
 
                   {/* STYLE PROFILE */}
                   <div className="style-section">
-                    <h3>Style & Voice</h3>
+                    <h3>Style &amp; Voice</h3>
                     <div className="style-grid">
                       <label>
                         Tone
@@ -1838,34 +1924,34 @@ return (
                     </label>
                   </div>
 
-                 {/* BACK COVER */}
-<div className="marketing-section">
-  <h3>Back-cover Description</h3>
+                  {/* BACK COVER */}
+                  <div className="marketing-section">
+                    <h3>Back-cover Description</h3>
 
-  <button
-    onClick={handleGenerateBackCover}
-    disabled={backCoverLoading}
-  >
-    {backCoverLoading ? "Generating…" : "Generate Blurb"}
-  </button>
+                    <button
+                      onClick={handleGenerateBackCover}
+                      disabled={backCoverLoading}
+                    >
+                      {backCoverLoading ? "Generating…" : "Generate Blurb"}
+                    </button>
 
-  <button
-    type="button"
-    onClick={handleDownloadKdpSheet}
-    disabled={!selectedProject}
-    style={{ marginLeft: "0.75rem" }}
-  >
-    Download KDP Sheet (.txt)
-  </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadKdpSheet}
+                      disabled={!selectedProject}
+                      style={{ marginLeft: "0.75rem" }}
+                    >
+                      Download KDP Sheet (.txt)
+                    </button>
 
-  <textarea
-    className="marketing-textarea"
-    value={backCoverBlurb}
-    onChange={(e) => setBackCoverBlurb(e.target.value)}
-    rows={6}
-    placeholder="Back-cover description..."
-  />
-</div>
+                    <textarea
+                      className="marketing-textarea"
+                      value={backCoverBlurb}
+                      onChange={(e) => setBackCoverBlurb(e.target.value)}
+                      rows={6}
+                      placeholder="Back-cover description..."
+                    />
+                  </div>
                 </section>
               </div>
             )}
@@ -1874,14 +1960,14 @@ return (
 
         {/* ASSISTANT VIEW */}
         {activeView === "assistant" && selectedProject && (
-          <div className="assistant-page">
+          <div className="assistant-page ai-frame">
             <header className="assistant-header">
               <h2>AI Assistant for: {selectedProject.title}</h2>
             </header>
 
             <div className="assistant-layout">
               {/* Left: AI Consoles */}
-              <section className="chat-section chat-section-full">
+              <section className="chat-section chat-section-full ai-frame">
                 <h3>AI Consoles</h3>
 
                 <div className="console-tabs">
@@ -1921,7 +2007,7 @@ return (
                 {consoleTab === "book" && (
                   <div className="console-pane console-pane-animated">
                     <p className="console-hint">
-                      This console uses your manuscript & style profile as
+                      This console uses your manuscript &amp; style profile as
                       context.
                     </p>
 
@@ -2009,7 +2095,7 @@ return (
                 {consoleTab === "research" && (
                   <div className="console-pane console-pane-animated">
                     <p className="console-hint">
-                      Search & fact-check using external APIs.
+                      Search &amp; fact-check using external APIs.
                     </p>
                     <ResearchPanel apiBase={API_BASE} manuscript={manuscript} />
                   </div>
@@ -2017,7 +2103,7 @@ return (
               </section>
 
               {/* Right side — model status */}
-              <aside className="assistant-sidebar">
+              <aside className="assistant-sidebar ai-frame">
                 <ModelStatusPanel apiBase={API_BASE} />
               </aside>
             </div>
