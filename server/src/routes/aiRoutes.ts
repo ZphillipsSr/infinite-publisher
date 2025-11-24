@@ -24,9 +24,13 @@ const HAS_OPENAI_KEY = !!process.env.OPENAI_API_KEY;
 
 // Keep these in sync with aiEngine.ts
 const OPENROUTER_FREE_MODELS: string[] = [
-  "meta-llama/llama-3.1-8b-instruct:free",
-  "google/gemini-1.5-flash-8b:free",
-  "mistralai/mistral-7b-instruct:free"
+  "google/gemma-3-4b-it:free",
+  "google/gemma-3-12b-it:free",
+  "google/gemma-3-27b-it:free",
+  "mistralai/mistral-small-3.2-24b-instruct:free",
+  "mistralai/mistral-nemo:free",
+  "deepseek/deepseek-r1:free",
+  "x-ai/grok-4.1-fast:free"
 ];
 
 const OPENROUTER_PAID_MODELS: string[] = [

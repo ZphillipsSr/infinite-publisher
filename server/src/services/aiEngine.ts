@@ -31,6 +31,37 @@ type RunOptions = {
 
 // Backwards-compat alias for older code that imports AIOptions
 export type AIOptions = RunOptions;
+
+/* ---------------------------------------------------------------------------
+   Unified AI Core v1 – Job-level types
+--------------------------------------------------------------------------- */
+
+export type AIJobType =
+  | "chat"
+  | "rewrite"
+  | "summarize"
+  | "outline"
+  | "manuscript_edit"
+  | "format_helper"
+  | "research";
+
+export interface AIJobRequest {
+  jobType: AIJobType;
+  userMessage: string;
+  manuscriptText?: string;
+  selectionText?: string;
+  instructions?: string;
+  styleProfileId?: string;
+  formatPresetId?: string;
+}
+
+export interface AIJobResponse {
+  ok: boolean;
+  jobType: AIJobType;
+  text?: string;
+  error?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Environment / configuration
 // ---------------------------------------------------------------------------
@@ -66,8 +97,8 @@ function makeClient(userSuppliedKey?: string | null): OpenAI {
       // Optional headers recommended by OpenRouter (customize if you like)
       defaultHeaders: {
         "HTTP-Referer": "https://infinite-publisher.local", // or your repo URL
-        "X-Title": "Infinite Publisher - Local Dev",
-      },
+        "X-Title": "Infinite Publisher - Local Dev"
+      }
     });
   }
 
@@ -83,7 +114,7 @@ function makeClient(userSuppliedKey?: string | null): OpenAI {
   }
 
   return new OpenAI({
-    apiKey: keyToUse,
+    apiKey: keyToUse
   });
 }
 
@@ -95,9 +126,13 @@ function makeClient(userSuppliedKey?: string | null): OpenAI {
 // These slugs are from OpenRouter's catalog; if any become unavailable
 // on a given day, we fall through to the next one.
 const OPENROUTER_FREE_MODELS: string[] = [
-  "meta-llama/llama-3.1-8b-instruct:free",
-  "google/gemini-1.5-flash-8b:free",
-  "mistralai/mistral-7b-instruct:free",
+  "google/gemma-3-4b-it:free",                 // Google: Gemma 3 4B (free)
+  "google/gemma-3-12b-it:free",                // Google: Gemma 3 12B (free)
+  "google/gemma-3-27b-it:free",                // Google: Gemma 3 27B (free)
+  "mistralai/mistral-small-3.2-24b-instruct:free", // Mistral Small 3 (free)
+  "mistralai/mistral-nemo:free",               // Mistral Nemo (free)
+  "deepseek/deepseek-r1:free",                 // DeepSeek R1 (free)
+  "x-ai/grok-4.1-fast:free"                    // Grok 4.1 Fast (free)
 ];
 
 // If/when you want to use paid OpenRouter models, you can add them here
@@ -165,8 +200,9 @@ function trimMessagesForModel(
   }
 
   console.warn(
-    `[AI] Input too long (${totalChars} chars). Trimming down to ~${MAX_INPUT_CHARS} chars for purpose "${purpose ||
-      "generic"}".`
+    `[AI] Input too long (${totalChars} chars). Trimming down to ~${MAX_INPUT_CHARS} chars for purpose "${
+      purpose || "generic"
+    }".`
   );
 
   const systemMessages = messages.filter((m) => m.role === "system");
@@ -191,7 +227,7 @@ function trimMessagesForModel(
       content:
         "NOTE: The manuscript was longer than the model's context limit. " +
         "This is a truncated excerpt. Focus on high-level structure and themes.\n\n" +
-        excerpt,
+        excerpt
     };
 
     return [...systemMessages, userMessage];
@@ -213,14 +249,14 @@ function trimMessagesForModel(
     role: latest.role,
     content:
       "NOTE: Conversation history was too long. Only the latest message is included.\n\n" +
-      content,
+      content
   };
 
   return [...systemMessages, trimmedLatest];
 }
 
 // ---------------------------------------------------------------------------
-// Unified runner
+// Core runner – used by existing routes
 // ---------------------------------------------------------------------------
 
 export async function runAIUnified(
@@ -270,15 +306,33 @@ export async function runAIUnified(
         max_tokens: maxTokens,
         messages: trimmedMessages.map((m) => ({
           role: m.role,
-          content: m.content,
-        })),
+          content: m.content
+        }))
       });
 
-      const text =
-        completion.choices?.[0]?.message?.content?.toString().trim() || "";
+      // Explicitly treat content as 'any' so we can handle both string and array forms
+      const rawContent: any = completion.choices?.[0]?.message?.content as any;
+
+      let text: string = "";
+      if (typeof rawContent === "string") {
+        text = rawContent.trim();
+      } else if (Array.isArray(rawContent)) {
+        // Some providers may return content as an array of segments
+        text = rawContent
+          .map((part: any) =>
+            typeof part === "string"
+              ? part
+              : part?.text?.value ?? part?.text ?? ""
+          )
+          .join("")
+          .trim();
+      }
 
       if (!text) {
-        throw new Error("Model returned empty response.");
+        // Treat empty / non-text content as a failure and try the next model.
+        const msg = `Model "${model}" returned empty or non-text content.`;
+        console.warn(`[AI] ${msg}`);
+        throw new Error(msg);
       }
 
       console.log(`[AI] Model "${model}" succeeded.`);
@@ -309,4 +363,183 @@ export async function runAIUnified(
   throw new Error(
     "All AI models failed. OpenRouter/Free endpoints down or unreachable."
   );
+}
+
+/* ---------------------------------------------------------------------------
+   Unified AI Core v1 – High-level job runner
+   (you can use this for the new “Unified AI Core” endpoint or 2nd AI panel)
+--------------------------------------------------------------------------- */
+
+const DEFAULT_CORE_SYSTEM_PROMPT = `
+You are the Unified AI Core of the Infinite Publisher desktop app.
+You help with writing, editing, summarization, outlining, manuscript polishing,
+research synthesis, and light formatting guidance for authors.
+Keep answers concise, practical, and aligned with the user's intent.
+`.trim();
+
+export async function runAIJob(
+  job: AIJobRequest,
+  userSuppliedKey?: string | null
+): Promise<AIJobResponse> {
+  try {
+    const { jobType } = job;
+    let purpose: string = "generic";
+    let temperature = 0.7;
+    let maxTokens = 800;
+    let messages: ChatMessage[] = [];
+
+    switch (jobType) {
+      case "chat": {
+        purpose = "chat";
+        messages = [
+          { role: "system", content: DEFAULT_CORE_SYSTEM_PROMPT },
+          { role: "user", content: job.userMessage }
+        ];
+        break;
+      }
+
+      case "rewrite": {
+        purpose = "rewrite";
+        temperature = 0.4;
+        maxTokens = 600;
+
+        const base =
+          job.selectionText || job.manuscriptText || job.userMessage || "";
+        const instructions =
+          job.instructions?.trim() ||
+          "Rewrite this text clearly and concisely while preserving meaning and tone.";
+
+        messages = [
+          {
+            role: "system",
+            content:
+              "You rewrite text clearly, concisely, and stylistically aligned with instructions."
+          },
+          {
+            role: "user",
+            content: `Instructions:\n${instructions}\n\nText to rewrite:\n${base}`
+          }
+        ];
+        break;
+      }
+
+      case "summarize": {
+        purpose = "summarize";
+        temperature = 0.4;
+        maxTokens = 700;
+
+        const base =
+          job.selectionText || job.manuscriptText || job.userMessage || "";
+
+        messages = [
+          {
+            role: "system",
+            content:
+              "Summarize the text for an author, focusing on key arguments, structure, and emotional tone. Keep it concise."
+          },
+          { role: "user", content: base }
+        ];
+        break;
+      }
+
+      case "outline": {
+        purpose = "manuscript_outline";
+        temperature = 0.5;
+        maxTokens = 900;
+
+        const base = job.manuscriptText || job.userMessage;
+
+        messages = [
+          {
+            role: "system",
+            content:
+              "You help authors create or refine book outlines. Return a structured outline with chapters and bullet points."
+          },
+          { role: "user", content: base }
+        ];
+        break;
+      }
+
+      case "manuscript_edit": {
+        purpose = "manuscript_context";
+        temperature = 0.5;
+        maxTokens = 900;
+
+        const base =
+          job.selectionText || job.manuscriptText || job.userMessage || "";
+
+        messages = [
+          {
+            role: "system",
+            content:
+              "Act as a professional line editor. Improve clarity, flow, and readability. Fix grammar and punctuation, but preserve the author's voice. Return ONLY the edited text."
+          },
+          { role: "user", content: base }
+        ];
+        break;
+      }
+
+      case "format_helper": {
+        purpose = "format_helper";
+        temperature = 0.4;
+        maxTokens = 700;
+
+        const context = [
+          `Format preset: ${job.formatPresetId ?? "unknown"}`,
+          `Style profile: ${job.styleProfileId ?? "none"}`
+        ].join("\n");
+
+        const userContent = `Format context:\n${context}\n\nUser question or notes:\n${job.userMessage}`;
+
+        messages = [
+          {
+            role: "system",
+            content:
+              "You are a formatting advisor inside Infinite Publisher. Give concrete, KDP/print/ebook-safe advice based on the context."
+          },
+          { role: "user", content: userContent }
+        ];
+        break;
+      }
+
+      case "research": {
+        purpose = "research";
+        temperature = 0.5;
+        maxTokens = 900;
+
+        messages = [
+          {
+            role: "system",
+            content:
+              "You are a research synthesis assistant. You receive user questions and optional research snippets and return a clear, citation-like answer that an author can use as a starting point."
+          },
+          { role: "user", content: job.userMessage }
+        ];
+        break;
+      }
+
+      default: {
+        throw new Error(`Unknown jobType: ${jobType}`);
+      }
+    }
+
+    const text = await runAIUnified(
+      messages,
+      { purpose, temperature, maxTokens },
+      userSuppliedKey
+    );
+
+    return {
+      ok: true,
+      jobType,
+      text
+    };
+  } catch (err: any) {
+    console.error("[AI Core v1] runAIJob error:", err);
+    return {
+      ok: false,
+      jobType: job.jobType,
+      error: err?.message ?? "Unknown AI core error"
+    };
+  }
 }
