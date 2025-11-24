@@ -1,68 +1,154 @@
-# Changelog
-
-All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
-
-### [1.0.1](https://github.com/ZphillipsSr/infinite-publisher/compare/v1.0.0...v1.0.1) (2025-11-21)
-
 \# Changelog
 
-\## \[1.0.0] - 2025-11-21
+All notable changes to \*\*Infinite Publisher\*\* will be documented in this file.  
+
+This project follows the \[standard-version](https://github.com/conventional-changelog/standard-version) commit guidelines.
+
+
+
+---
+
+
+
+\## \[1.0.2] – 2025-11-23
+
+🔸 \*\*Cosmic UI Update + Animation Overhaul\*\*
+
+
+
+\### ✨ Added
+
+\- Cosmic UI redesign across all pages  
+
+\- Infinite golden “fuse” border animation (`.ai-frame`)  
+
+\- Animated infinity shooting-star hero on library screen  
+
+\- Larger manuscript editor viewport  
+
+\- Full-screen scaling improvements for ultrawide displays  
+
+
+
+\### 🎨 Improved
+
+\- Enhanced gradients, contrast, depth, and neon lighting effects  
+
+\- Cleaner Assistant + Workspace layout separation  
+
+\- Improved scroll handling across long pages  
+
+\- More unified button styling + hover animations  
+
+
+
+\### 🛠 Fixed
+
+\- JSX fragment mismatch that hid the manuscript editor  
+
+\- Golden border animation rotating the entire screen  
+
+\- Right-side white bar / scaling overflow  
+
+\- Minor visual glitches in research \& insights sections  
+
+
+
+---
+
+
+
+\## \[1.0.1] – 2025-11-21
+
+✨ \*\*Infinite Publisher MVP Release\*\*
 
 
 
 \### Added
 
-\- Infinite Publisher MVP:
+\- Project library + autosave system  
 
-&nbsp; - Project library and per-book autosave drafts
+\- Manuscript import: `.txt`, `.md`, `.doc`, `.docx`, `.pdf`, `.epub`  
 
-&nbsp; - Manuscript editor with import (.txt, .md, .doc, .docx, .pdf, .epub)
+\- KDP formatting metrics (word count, page estimate, trim size, spacing)  
 
-&nbsp; - KDP-style formatting stats (word count, page estimate, trim size, line spacing)
+\- Print \& cover calculators (spine width, full cover dims)  
 
-&nbsp; - Print \& cover spec calculator (spine width, full cover dimensions)
+\- Manuscript insights (chapters, reading time, counts)  
 
-&nbsp; - Manuscript insights (word counts, chapter detection, reading time)
+\- AI Tools:
 
-&nbsp; - AI-powered:
+&nbsp; - Contextual chat  
 
-&nbsp;   - Contextual chat
+&nbsp; - Section rewrites (clearer / shorter / vivid)  
 
-&nbsp;   - Selection rewrites (clearer, shorter, more vivid)
+&nbsp; - Chapter outline generation  
 
-&nbsp;   - Chapter outline generation
+&nbsp; - Back cover blurb generator  
 
-&nbsp;   - Back-cover blurb generation
+\- Voice/style profile system  
 
-&nbsp; - Style \& voice profile per project
+\- Export: KDP project sheet (.txt)  
 
-&nbsp; - KDP project sheet exporter (.txt)
-
-&nbsp; - Environment debug panel for AI \& research integrations
+\- AI/Research environment debug panel  
 
 
 
 \### Planned
 
-\- Richer export formats and presets
+\- Advanced export presets  
 
-\- Pluggable AI backends and research providers
+\- Swappable AI backends  
 
-\- Advanced UI themes and layout options
+\- Additional UI themes  
 
 
 
-\## 0.1.0 – Initial Commit
+---
 
-\- Core backend \& frontend added
 
-\- AI tools (rewrite, outline, chat)
 
-\- Research \& fact-check beta
+\## \[0.1.0] – Initial Commit
 
-\- Import formats (txt, md, doc, docx, pdf)
+\### Added
 
-\- KDP specs calculator
+\- Backend + frontend structure  
 
-\- Roadmap + license + notice
+\- Rewrite, outline, and chat tools  
+
+\- Research + fact-check system  
+
+\- Document import pipeline  
+
+\- Cover/KDP calculation utilities  
+
+\- Roadmap, license, project metadata  
+
+
+
+---
+
+
+
+\## 🔗 Version Links (Optional)
+
+> These automatically become clickable inside GitHub.
+
+
+
+If your repo is:  
+
+\*\*https://github.com/ZJPhillipsSr/infinite-publisher\*\*
+
+
+
+Add compare links here:\[1.0.2]: https://github.com/ZphillipsSr/infinite-publisher/compare/v1.0.1...v1.0.2
+
+\[1.0.1]: https://github.com/ZphillipsSr/infinite-publisher/compare/v1.0.0...v1.0.1
+
+\[1.0.0]: https://github.com/ZphillipsSr/infinite-publisher/compare/v0.1.0...v1.0.0
+
+\[0.1.0]: https://github.com/ZphillipsSr/infinite-publisher/releases/tag/v0.1.0 
+
+
 
