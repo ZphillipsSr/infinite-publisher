@@ -6,90 +6,91 @@ import {
 } from "../services/researchService";
 
 export function registerResearchRoutes(app: Express) {
-  // -------------------------
-  // POST /api/research/search
-  // -------------------------
+  /* -----------------------------------------------------------------------
+     POST /api/research/search
+     Returns:
+       {
+         provider: string,
+         sources: Array<{ title?: string, url?: string, snippet?: string }>
+       }
+  ----------------------------------------------------------------------- */
   app.post("/api/research/search", async (req: Request, res: Response) => {
-    const { query } = req.body as {
-      query?: string;
-    };
+    const { query } = req.body as { query?: string };
 
-    // User-provided API key (optional)
     const userOpenAIKey = (req.headers["x-user-openai-key"] as
       | string
       | undefined)?.trim();
 
     if (!query || !query.trim()) {
-      return res.status(400).json({ error: "query is required" });
+      return res.status(400).json({ message: "query is required" });
     }
 
-    try {
-      const cleaned = query.trim();
+    const cleaned = query.trim();
 
+    try {
+      // 1) Perform the actual web search via Tavily / Serper
       const { sources, provider } = await runWebSearch(cleaned);
 
-      const summary = await summarizeSearchResults(
+      // 2) Summarize results using AI (may use user-supplied key)
+      await summarizeSearchResults(
         cleaned,
         sources,
-        userOpenAIKey // <-- pass user key
+        userOpenAIKey
       );
 
-      res.json({
-        query: cleaned,
+      // 3) Return consistent shape expected by ResearchPanel
+      return res.json({
         provider,
-        summary,
         sources
       });
     } catch (err) {
       console.error("Research search failed:", err);
-      res.status(500).json({
-        query: query.trim(),
+      return res.status(500).json({
         provider: "error",
-        summary: "Research search failed due to a server error.",
-        sources: []
+        sources: [],
+        message: "Research search failed due to a server error."
       });
     }
   });
 
-  // ------------------------------
-  // POST /api/research/fact-check
-  // ------------------------------
+  /* -----------------------------------------------------------------------
+     POST /api/research/fact-check
+     Returns:
+       {
+         result: string,
+         explanation?: string,
+         sources?: Array<{ title?: string, url?: string, snippet?: string }>
+       }
+  ----------------------------------------------------------------------- */
   app.post("/api/research/fact-check", async (req: Request, res: Response) => {
     const { claim, context } = req.body as {
       claim?: string;
       context?: string;
     };
 
-    // User OpenAI key support
     const userOpenAIKey = (req.headers["x-user-openai-key"] as
       | string
       | undefined)?.trim();
 
     if (!claim || !claim.trim()) {
-      return res.status(400).json({ error: "claim is required" });
+      return res.status(400).json({ message: "claim is required" });
     }
 
+    const cleaned = claim.trim();
+
     try {
-      const cleaned = claim.trim();
+      const result = await factCheckClaim(cleaned, context, userOpenAIKey);
 
-      const result = await factCheckClaim(
-        cleaned,
-        context,
-        userOpenAIKey // <-- pass in user key
-      );
-
-      res.json({
-        claim: cleaned,
-        ...result
-      });
+      // Shape from factCheckClaim should already match:
+      // { result, explanation?, sources? }
+      return res.json(result);
     } catch (err) {
       console.error("Fact-check failed (route-level):", err);
-      res.json({
-        claim: claim.trim(),
-        provider: "error",
+
+      return res.status(500).json({
         result: "unknown",
         explanation:
-          "Fact-check failed due to an unexpected server error. Please try again later.",
+          "Fact-check failed due to a server error. Please try again.",
         sources: []
       });
     }

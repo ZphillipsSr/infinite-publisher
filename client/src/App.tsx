@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import ProjectSearchPanel from "./components/ProjectSearchPanel";import React, { useEffect, useState, useRef } from "react";
 import "./App.css";
 import ModelStatusPanel from "./components/ModelStatusPanel";
 import ResearchPanel from "./components/ResearchPanel";
@@ -100,6 +100,7 @@ function App() {
 
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [useKbForBookChat, setUseKbForBookChat] = useState(true);
 
   // Top-level view: main workspace vs full-screen assistant
   const [activeView, setActiveView] = useState<"workspace" | "assistant">(
@@ -822,11 +823,11 @@ Style profile (JSON): ${JSON.stringify(styleProfile ?? {}, null, 2)}`;
 
       const messagesForApi = [
         {
-          role: "system",
+          role: "system" as const,
           content: systemContext
         },
         {
-          role: "user",
+          role: "user" as const,
           content:
             `User request:\n${userMessage.content}\n\n` +
             (manuscript.trim()
@@ -842,7 +843,8 @@ Style profile (JSON): ${JSON.stringify(styleProfile ?? {}, null, 2)}`;
           messages: messagesForApi,
           temperature: 0.7,
           maxTokens: 800,
-          purpose: "manuscript_context"
+          purpose: "manuscript_context",
+          useKb: useKbForBookChat
         })
       });
 
@@ -1212,6 +1214,27 @@ Style profile (JSON): ${JSON.stringify(styleProfile ?? {}, null, 2)}`;
           2
         )
       : "";
+
+  // ---------- KB → Assistant wiring ----------
+  const handleUseKbResultInAssistant = (payload: {
+    query: string;
+    result: KbResult;
+    composedContext: string;
+  }) => {
+    // Jump into Assistant view + Book co-author tab
+    setActiveView("assistant");
+    setConsoleTab("book");
+    setUseKbForBookChat(true);
+
+    // Pre-fill the book chat input with the KB context plus a prompt stub
+    setChatInput((prev) => {
+      const base = `KB context from ${payload.result.relPath || payload.result.filePath} (lines ${
+        payload.result.startLine
+      }–${payload.result.endLine}):\n${payload.result.content}\n\nQuestion: `;
+      if (!prev.trim()) return base;
+      return `${base}\n\n${prev}`;
+    });
+  };
 
   return (
     <div className="app-root">
@@ -2011,6 +2034,19 @@ Style profile (JSON): ${JSON.stringify(styleProfile ?? {}, null, 2)}`;
                       context.
                     </p>
 
+                    <div className="kb-toggle-row">
+                      <label style={{ fontSize: "0.8rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={useKbForBookChat}
+                          onChange={(e) =>
+                            setUseKbForBookChat(e.target.checked)
+                          }
+                        />{" "}
+                        Use project KB (codebase context)
+                      </label>
+                    </div>
+
                     <div className="chat-log chat-log-large">
                       {chatMessages.length === 0 && (
                         <p className="chat-placeholder">
@@ -2102,9 +2138,14 @@ Style profile (JSON): ${JSON.stringify(styleProfile ?? {}, null, 2)}`;
                 )}
               </section>
 
-              {/* Right side — model status */}
+              {/* Right side — model status + project KB search */}
               <aside className="assistant-sidebar ai-frame">
                 <ModelStatusPanel apiBase={API_BASE} />
+
+                <div className="assistant-sidebar-section">
+                  <h3>Project KB Search</h3>
+                  <ProjectSearchPanel onUseInAssistant={handleUseKbResultInAssistant} />
+                </div>
               </aside>
             </div>
           </div>

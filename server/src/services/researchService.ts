@@ -9,16 +9,12 @@
 // - Research behavior now consistent with the rest of the app
 
 import fetch from "node-fetch";
-import {
-  TAVILY_API_KEY,
-  SERPER_API_KEY,
-  OPENROUTER_KEY
-} from "../config";
+import { TAVILY_API_KEY, SERPER_API_KEY, OPENROUTER_KEY } from "../config";
 import { ResearchSource } from "../types/project";
 import { runAIUnified, ChatMessage } from "./aiEngine";
 
 /* -------------------------------------------------------
-   Provider Selection Logic (unchanged)
+   Provider Selection Logic
 --------------------------------------------------------- */
 let providerScores = { tavily: 1, serper: 1 };
 
@@ -35,13 +31,14 @@ function chooseProvider(query: string): "tavily" | "serper" | "auto" {
   ) {
     return "tavily";
   }
+
   if (query.length < 50) return "serper";
 
   return "auto";
 }
 
 /* -------------------------------------------------------
-   Tavily Search Wrapper (unchanged)
+   Tavily Search Wrapper
 --------------------------------------------------------- */
 async function searchTavily(query: string): Promise<ResearchSource[] | null> {
   if (!TAVILY_API_KEY) return null;
@@ -54,8 +51,8 @@ async function searchTavily(query: string): Promise<ResearchSource[] | null> {
         api_key: TAVILY_API_KEY,
         query,
         search_depth: "basic",
-        max_results: 5,
-      }),
+        max_results: 5
+      })
     });
 
     if (!r.ok) return null;
@@ -67,7 +64,7 @@ async function searchTavily(query: string): Promise<ResearchSource[] | null> {
     return arr.slice(0, 5).map((r: any) => ({
       title: r.title || "(no title)",
       url: r.url || "",
-      snippet: r.content || "",
+      snippet: r.content || ""
     }));
   } catch (err) {
     console.error("Tavily error:", err);
@@ -77,7 +74,7 @@ async function searchTavily(query: string): Promise<ResearchSource[] | null> {
 }
 
 /* -------------------------------------------------------
-   Serper Search Wrapper (unchanged)
+   Serper Search Wrapper
 --------------------------------------------------------- */
 async function searchSerper(query: string): Promise<ResearchSource[] | null> {
   if (!SERPER_API_KEY) return null;
@@ -87,9 +84,9 @@ async function searchSerper(query: string): Promise<ResearchSource[] | null> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-KEY": SERPER_API_KEY,
+        "X-API-KEY": SERPER_API_KEY
       },
-      body: JSON.stringify({ q: query, num: 5 }),
+      body: JSON.stringify({ q: query, num: 5 })
     });
 
     if (!r.ok) return null;
@@ -101,7 +98,7 @@ async function searchSerper(query: string): Promise<ResearchSource[] | null> {
     return arr.slice(0, 5).map((r: any) => ({
       title: r.title || "(no title)",
       url: r.link || "",
-      snippet: r.snippet || "",
+      snippet: r.snippet || ""
     }));
   } catch (err) {
     console.error("Serper error:", err);
@@ -148,8 +145,17 @@ export async function runWebSearch(query: string): Promise<{
     }
   }
 
-  if (!sources) return { sources: [], provider: "none" };
-  return { sources, provider: providerUsed };
+  if (!sources) {
+    return {
+      sources: [],
+      provider: "none"
+    };
+  }
+
+  return {
+    sources,
+    provider: providerUsed
+  };
 }
 
 /* -------------------------------------------------------
@@ -160,21 +166,21 @@ export async function summarizeSearchResults(
   sources: ResearchSource[],
   userOpenAIKey?: string
 ): Promise<string> {
-  if (!sources || sources.length === 0)
+  if (!sources || sources.length === 0) {
     return "No search sources were available for this query.";
+  }
 
   // AI summary allowed only if OpenRouter OR user's OpenAI key exists
   const aiEnabled = !!OPENROUTER_KEY || !!userOpenAIKey;
 
-  if (!aiEnabled)
+  if (!aiEnabled) {
     return `Found ${sources.length} sources. AI summarizer disabled.`;
+  }
 
   const context = sources
     .map(
       (s, i) =>
-        `[${i + 1}] ${s.title}\nURL: ${s.url}\nSnippet: ${
-          s.snippet || ""
-        }`
+        `[${i + 1}] ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet || ""}`
     )
     .join("\n\n")
     .slice(0, 9000);
@@ -193,15 +199,19 @@ ${context}
 
   const messages: ChatMessage[] = [
     { role: "system", content: "You summarize conservatively and neutrally." },
-    { role: "user", content: prompt },
+    { role: "user", content: prompt }
   ];
 
   try {
-    return await runAIUnified(messages, {
-      purpose: "research",
-      temperature: 0.3,
-      maxTokens: 800,
-    }, userOpenAIKey);
+    return await runAIUnified(
+      messages,
+      {
+        purpose: "research",
+        temperature: 0.3,
+        maxTokens: 800
+      },
+      userOpenAIKey
+    );
   } catch (err) {
     console.error("AI summary error:", err);
     return `Found ${sources.length} sources. AI summarizer unavailable.`;
@@ -229,17 +239,16 @@ export async function factCheckClaim(
   if (!aiEnabled || sources.length === 0) {
     return {
       result: "unknown",
-      explanation:
-        "AI fact-checking unavailable. Review sources manually.",
+      explanation: "AI fact-checking unavailable. Review sources manually.",
       provider,
-      sources,
+      sources
     };
   }
 
   const excerpts = sources
     .map(
       (s, i) =>
-        `[${i + 1}] ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet}`
+        `[${i + 1}] ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet || ""}`
     )
     .join("\n\n")
     .slice(0, 9000);
@@ -264,25 +273,29 @@ Explanation: <3–6 short cautious sentences>
 
   const messages: ChatMessage[] = [
     { role: "system", content: "You are a cautious fact-checker." },
-    { role: "user", content: prompt },
+    { role: "user", content: prompt }
   ];
 
   let ai: string;
 
   try {
-    ai = await runAIUnified(messages, {
-      purpose: "research",
-      temperature: 0.1,
-      maxTokens: 800,
-    }, userOpenAIKey);
+    ai = await runAIUnified(
+      messages,
+      {
+        purpose: "research",
+        temperature: 0.1,
+        maxTokens: 800
+      },
+      userOpenAIKey
+    );
   } catch (err) {
     console.error("Fact-check AI error:", err);
     return {
       result: "unknown",
       explanation:
-        "AI failed or rate-limited. Unable to complete fact-check.",
+        "AI failed or was rate-limited. Unable to complete fact-check.",
       provider,
-      sources,
+      sources
     };
   }
 
@@ -295,7 +308,9 @@ Explanation: <3–6 short cautious sentences>
     const line = lines[i].trim();
 
     const m = line.match(/^Result:\s*(true|false|mixed|unknown)/i);
-    if (m) result = m[1].toLowerCase();
+    if (m) {
+      result = m[1].toLowerCase();
+    }
 
     const e = line.match(/^Explanation:\s*(.*)$/i);
     if (e) {
@@ -308,6 +323,6 @@ Explanation: <3–6 short cautious sentences>
     result,
     explanation,
     provider: provider + "+ai",
-    sources,
+    sources
   };
 }

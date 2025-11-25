@@ -5,8 +5,10 @@ import { registerProjectRoutes } from "./routes/projectsRoutes";
 import { registerManuscriptRoutes } from "./routes/manuscriptsRoutes";
 import aiRoutes from "./routes/aiRoutes";
 import { registerResearchRoutes } from "./routes/researchRoutes";
+import devRoutes from "./routes/devRoutes";
 import { registerDebugRoutes } from "./routes/debugRoutes";
 import { registerHealthRoutes } from "./routes/healthRoutes";
+import kbRoutes from "./routes/kbRoutes";
 
 const app = express();
 
@@ -14,18 +16,17 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 
-// ---------- Route registration (modular) ----------
+// ---------- Route registration ----------
 registerHealthRoutes(app);
 registerDebugRoutes(app);
 registerProjectRoutes(app);
 registerManuscriptRoutes(app);
 app.use("/api/ai", aiRoutes);
 registerResearchRoutes(app);
+app.use("/api/dev", devRoutes);
+app.use("/api/devtools/kb", kbRoutes);
 
 // ---------- Start server (guarded for ts-node-dev) ----------
-// ts-node-dev sometimes re-requires this file in the same process.
-// We guard app.listen so it only runs once per process to avoid EADDRINUSE.
-
 const globalAny = global as any;
 
 if (!globalAny.__IP_SERVER_STARTED__) {

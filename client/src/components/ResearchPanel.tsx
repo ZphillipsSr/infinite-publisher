@@ -6,18 +6,47 @@ const DEFAULT_API_BASE =
 type ResearchPanelProps = {
   apiBase?: string;
   manuscript: string;
+  userOpenAIKey?: string | null;
+};
+
+type ResearchSource = {
+  title?: string;
+  url?: string;
+  snippet?: string;
+};
+
+type WebSearchResponse = {
+  provider?: string;
+  sources?: ResearchSource[];
+};
+
+type FactCheckResponse = {
+  result?: string;
+  explanation?: string;
+  sources?: ResearchSource[];
+};
+
+type ErrorResponse = {
+  message?: string;
 };
 
 type ResearchResultMode = "search" | "fact-check" | "error";
 
+type ResearchResultData =
+  | WebSearchResponse
+  | FactCheckResponse
+  | ErrorResponse
+  | null;
+
 type ResearchResultState = {
   mode: ResearchResultMode;
-  data: any;
+  data: ResearchResultData;
 } | null;
 
 const ResearchPanel: React.FC<ResearchPanelProps> = ({
   apiBase = DEFAULT_API_BASE,
-  manuscript
+  manuscript,
+  userOpenAIKey
 }) => {
   const [researchQuery, setResearchQuery] = useState("");
   const [factClaim, setFactClaim] = useState("");
@@ -27,21 +56,54 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchSuggestions, setResearchSuggestions] = useState<string[]>([]);
 
+  const buildHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json"
+    };
+    const key = userOpenAIKey?.trim();
+    if (key) {
+      headers["X-User-OpenAI-Key"] = key;
+    }
+    return headers;
+  };
+
   const handleRunResearch = async () => {
-    if (!researchQuery.trim()) {
+    const query = researchQuery.trim();
+    if (!query) {
       alert("Enter a search query.");
       return;
     }
+
     setResearchLoading(true);
+    setResearchResult(null);
+
     try {
       const res = await fetch(`${apiBase}/api/research/search`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: researchQuery.trim()
-        })
+        headers: buildHeaders(),
+        body: JSON.stringify({ query })
       });
-      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Research search failed with status", res.status);
+        let errorPayload: unknown;
+        try {
+          errorPayload = await res.json();
+        } catch {
+          /* ignore JSON parse errors */
+        }
+        setResearchResult({
+          mode: "error",
+          data: {
+            message:
+              (errorPayload as ErrorResponse | undefined)?.message ||
+              "Research search failed."
+          }
+        });
+        return;
+      }
+
+      const data: WebSearchResponse = await res.json();
       setResearchResult({ mode: "search", data });
     } catch (err) {
       console.error("Research search failed", err);
@@ -141,17 +203,41 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({
       alert("Enter a claim to fact-check.");
       return;
     }
+
     setResearchLoading(true);
+    setResearchResult(null);
+
     try {
       const res = await fetch(`${apiBase}/api/research/fact-check`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildHeaders(),
         body: JSON.stringify({
           claim: targetClaim,
+          // keep context small-ish so we don't send the whole book
           context: manuscript.slice(0, 2000)
         })
       });
-      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Fact-check failed with status", res.status);
+        let errorPayload: unknown;
+        try {
+          errorPayload = await res.json();
+        } catch {
+          /* ignore JSON parse errors */
+        }
+        setResearchResult({
+          mode: "error",
+          data: {
+            message:
+              (errorPayload as ErrorResponse | undefined)?.message ||
+              "Fact-check failed."
+          }
+        });
+        return;
+      }
+
+      const data: FactCheckResponse = await res.json();
       setResearchResult({ mode: "fact-check", data });
     } catch (err) {
       console.error("Fact-check failed", err);
@@ -163,6 +249,21 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({
       setResearchLoading(false);
     }
   };
+
+  const currentProvider =
+    (researchResult?.data as WebSearchResponse | undefined)?.provider ||
+    (researchResult?.data as FactCheckResponse | undefined)?.result ||
+    undefined;
+
+  const searchSources =
+    (researchResult?.data as WebSearchResponse | undefined)?.sources || [];
+
+  const factSources =
+    (researchResult?.data as FactCheckResponse | undefined)?.sources || [];
+
+  const isSearchMode = researchResult?.mode === "search";
+  const isFactCheckMode = researchResult?.mode === "fact-check";
+  const isErrorMode = researchResult?.mode === "error";
 
   return (
     <div className="console-pane console-pane-animated">
@@ -192,9 +293,7 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({
             onClick={handleRunResearch}
             disabled={researchLoading || !researchQuery.trim()}
           >
-            {researchLoading && researchResult?.mode === "search"
-              ? "Searching..."
-              : "Run Web Search"}
+            {researchLoading && isSearchMode ? "Searching..." : "Run Web Search"}
           </button>
           <button
             type="button"
@@ -246,7 +345,7 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({
           onClick={handleFactCheck}
           disabled={researchLoading || !factClaim.trim()}
         >
-          {researchLoading && researchResult?.mode === "fact-check"
+          {researchLoading && isFactCheckMode
             ? "Fact-checking..."
             : "Run Fact Check"}
         </button>
@@ -267,17 +366,62 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({
 
         {researchResult && (
           <div className="research-output">
-            {researchResult.mode === "search" && (
+            {isSearchMode && (
               <>
                 <p className="print-hint">
-                  Web search results (provider:{" "}
-                  {researchResult.data?.provider || "unknown"}):
+                  Web search results (provider: {currentProvider || "unknown"}):
                 </p>
-                {Array.isArray(researchResult.data?.sources) &&
-                researchResult.data.sources.length > 0 ? (
+                {Array.isArray(searchSources) && searchSources.length > 0 ? (
                   <ul className="research-list">
-                    {researchResult.data.sources.map(
-                      (s: any, idx: number) => (
+                    {searchSources.map((s: ResearchSource, idx: number) => (
+                      <li key={idx} className="research-item">
+                        <strong>{s.title || "(no title)"}</strong>
+                        {s.url && (
+                          <div>
+                            <a href={s.url} target="_blank" rel="noreferrer">
+                              {s.url}
+                            </a>
+                          </div>
+                        )}
+                        {s.snippet && <p>{s.snippet}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No sources returned.</p>
+                )}
+              </>
+            )}
+
+            {isFactCheckMode && (
+              <>
+                <p className="print-hint">
+                  Fact-check verdict from AI + web search:
+                </p>
+                <p>
+                  <strong>Result:</strong>{" "}
+                  {(
+                    (researchResult.data as FactCheckResponse | null)
+                      ?.result || "UNKNOWN"
+                  )
+                    .toString()
+                    .toUpperCase()}
+                </p>
+                {(researchResult.data as FactCheckResponse | null)
+                  ?.explanation && (
+                  <p>
+                    <strong>Explanation:</strong>{" "}
+                    {
+                      (researchResult.data as FactCheckResponse | null)
+                        ?.explanation
+                    }
+                  </p>
+                )}
+                {Array.isArray(factSources) && factSources.length > 0 && (
+                  <>
+                    <p className="print-hint">Sources considered:</p>
+                    <ul className="research-list">
+                      {factSources.map((s: ResearchSource, idx: number) => (
                         <li key={idx} className="research-item">
                           <strong>{s.title || "(no title)"}</strong>
                           {s.url && (
@@ -293,63 +437,16 @@ const ResearchPanel: React.FC<ResearchPanelProps> = ({
                           )}
                           {s.snippet && <p>{s.snippet}</p>}
                         </li>
-                      )
-                    )}
-                  </ul>
-                ) : (
-                  <p>No sources returned.</p>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </>
             )}
 
-            {researchResult.mode === "fact-check" && (
-              <>
-                <p className="print-hint">
-                  Fact-check verdict from AI + web search:
-                </p>
-                <p>
-                  <strong>Result:</strong>{" "}
-                  {researchResult.data?.result?.toUpperCase?.() || "UNKNOWN"}
-                </p>
-                {researchResult.data?.explanation && (
-                  <p>
-                    <strong>Explanation:</strong>{" "}
-                    {researchResult.data.explanation}
-                  </p>
-                )}
-                {Array.isArray(researchResult.data?.sources) &&
-                  researchResult.data.sources.length > 0 && (
-                    <>
-                      <p className="print-hint">Sources considered:</p>
-                      <ul className="research-list">
-                        {researchResult.data.sources.map(
-                          (s: any, idx: number) => (
-                            <li key={idx} className="research-item">
-                              <strong>{s.title || "(no title)"}</strong>
-                              {s.url && (
-                                <div>
-                                  <a
-                                    href={s.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    {s.url}
-                                  </a>
-                                </div>
-                              )}
-                              {s.snippet && <p>{s.snippet}</p>}
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </>
-                  )}
-              </>
-            )}
-
-            {researchResult.mode === "error" && (
+            {isErrorMode && (
               <p className="error">
-                {researchResult.data?.message ||
+                {(researchResult.data as ErrorResponse | null)?.message ||
                   "An error occurred running research."}
               </p>
             )}
