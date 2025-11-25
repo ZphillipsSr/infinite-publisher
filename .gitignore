@@ -1,41 +1,67 @@
-# Node
+# ============================================
+# Node / Typescript
+# ============================================
 node_modules/
+dist/
+dist-ssr/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
-# Environment / Secrets
+# ============================================
+# ENVIRONMENT / SECRETS
+# ============================================
 .env
-.env.*
-!.env.example
+.env.local
+.env.production
+.env.development
+*.env
+server/.env
+client/.env
 
-# Build output (client + server)
-dist/
+# OpenAI / API keys accidentally added
+apikey.txt
+openai_key.txt
+*.key
+
+# Prevent committing user key storage
+client/src/preferences.json
+
+# ============================================
+# ELECTRON BUILD OUTPUT
+# ============================================
+dist_electron/
 build/
-client/dist/
-server/dist/
+release/
+out/
+*.asar
 
-# Cache / Temp
-.cache/
-.vite/
-tmp/
-temp/
+# Windows installer artifacts
+*.exe
+*.dll
+*.msi
+*.nupkg
+*.blockmap
 
-# IDE / Editor
+# ============================================
+# KB / Embedding Cache
+# ============================================
+server/src/devtools/kb/cache/
+server/src/devtools/kb/data/
+server/knowledge-base/
+*.embedding.json
+
+# ============================================
+# IDE / SYSTEM FILES
+# ============================================
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# OS files
 .DS_Store
 Thumbs.db
 
-# Local dev files
-client/src/local-drafts/
-
-# Logs
-*.log
-logs/
-dist_electron/
+# Backup / temp files
+*.tmp
+*.temp
+*.bak
+*.old
